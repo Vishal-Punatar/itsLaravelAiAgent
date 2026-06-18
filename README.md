@@ -77,15 +77,6 @@ Visit `http://localhost:8000` after starting the dev server.
 
 ---
 
-## AI Configuration
-
-After cloning, configure your AI provider in the admin settings panel or via `.env`:
-
-```env
-AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=your_api_key
-```
-
 ## License
 
 MIT
