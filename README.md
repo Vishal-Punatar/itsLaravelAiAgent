@@ -77,32 +77,6 @@ Visit `http://localhost:8000` after starting the dev server.
 
 ---
 
-### Production Setup (Nginx)
-
-Point your web server to the `public/` directory:
-
-```nginx
-server_name itslaravelai.178.105.228.192.nip.io;
-root /var/www/itsLaravelAiAgent/public;
-
-# Add Laravel-specific config:
-# - Rewrite URLs to public/index.php
-# - Set max upload size
-# - Configure SSL (recommended)
-
-# Storage link (for file uploads)
-php artisan storage:link
-```
-
-### First Admin Account
-
-After running migrations, manually set a user as admin via database or tinker:
-
-```bash
-php artisan tinker
->>> \App\Models\User::where('email', 'your@email.com')->update(['is_admin' => true]);
-```
-
 ## AI Configuration
 
 After cloning, configure your AI provider in the admin settings panel or via `.env`:
