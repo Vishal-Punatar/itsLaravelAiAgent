@@ -23,10 +23,13 @@ class RegisterController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
+        $isFirstUser = User::count() === 0;
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'is_admin' => $isFirstUser,
         ]);
 
         // Auto-login after registration
