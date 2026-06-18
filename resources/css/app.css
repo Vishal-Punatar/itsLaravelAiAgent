@@ -1,0 +1,1190 @@
+@import 'tailwindcss';
+
+/* shadcn/ui theme using CSS variables compatible with Tailwind v4 */
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+
+    /* Colors */
+    --color-background: oklch(0.08 0.02 267);
+    --color-foreground: oklch(0.95 0 0);
+    --color-card: oklch(0.12 0.02 267);
+    --color-card-foreground: oklch(0.95 0 0);
+    --color-popover: oklch(0.12 0.02 267);
+    --color-popover-foreground: oklch(0.95 0 0);
+    --color-primary: oklch(0.65 0.21 267);
+    --color-primary-foreground: oklch(0.98 0 0);
+    --color-secondary: oklch(0.22 0.02 267);
+    --color-secondary-foreground: oklch(0.98 0 0);
+    --color-muted: oklch(0.22 0.02 267);
+    --color-muted-foreground: oklch(0.65 0.02 267);
+    --color-accent: oklch(0.22 0.02 267);
+    --color-accent-foreground: oklch(0.98 0 0);
+    --color-destructive: oklch(0.55 0.22 25);
+    --color-destructive-foreground: oklch(0.98 0 0);
+    --color-border: oklch(0.22 0.02 267);
+    --color-input: oklch(0.22 0.02 267);
+    --color-ring: oklch(0.65 0.21 267);
+
+    /* Border radius */
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+        font-feature-settings: "rlig" 1, "calt" 1;
+    }
+}
+
+/* Utility classes */
+@layer utilities {
+    .text-balance {
+        text-wrap: balance;
+    }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #3a3a5a;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #5a5a7a;
+}
+
+/* Animation for messages */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Pulse animation for typing dots */
+@keyframes pulse-dot {
+    0%, 100% {
+        opacity: 0.4;
+        transform: scale(0.8);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Gradient text */
+.gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Glass effect */
+.glass {
+    background: rgba(30, 30, 50, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+/* Custom focus styles */
+*:focus-visible {
+    outline: none;
+    ring: 2px;
+    ring-color: rgba(102, 126, 234, 0.5);
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+    .hide-on-mobile {
+        display: none;
+    }
+}
+/* Light Theme */
+.light {
+    --bg-primary: #f1f5f9;
+    --bg-secondary: #f8f9fa;
+    --bg-tertiary: #e9ecef;
+    --text-primary: #1a1a2e;
+    --text-secondary: #495057;
+    --text-muted: #6c757d;
+    --border-color: #dee2e6;
+}
+
+.light body,
+.light #app {
+    background-color: #f1f5f9;
+    color: #1a1a2e;
+}
+
+.light .bg-\[\#0f0f1a\] {
+    background-color: #f8f9fa;
+}
+
+.light .bg-\[\#1a1a2e\] {
+    background-color: #f1f5f9;
+}
+
+.light .bg-\[\#1e1e32\] {
+    background-color: #f3f4f6;
+}
+
+.light .bg-\[\#252542\] {
+    background-color: #e5e7eb;
+}
+
+.light .text-white {
+    color: #1a1a2e;
+}
+
+.light .text-\[\#d0d0d0\] {
+    color: #374151;
+}
+
+.light .text-\[\#b0b0b0\] {
+    color: #6b7280;
+}
+
+.light .text-\[\#888\] {
+    color: #9ca3af;
+}
+
+.light .text-\[\#666\] {
+    color: #6b7280;
+}
+
+.light .text-\[\#555\] {
+    color: #9ca3af;
+}
+
+.light .text-\[\#444\] {
+    color: #9ca3af;
+}
+
+.light .border-\[\#2d2d4a\] {
+    border-color: #e5e7eb;
+}
+
+.light .border-\[rgba\(102\,126\,234\,0\.12\)\] {
+    border-color: #d1d5db;
+}
+
+.light .border-\[rgba\(102\,126\,234\,0\.25\)\] {
+    border-color: #a5b4fc;
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.08\)\]:hover {
+    background-color: rgba(99, 102, 241, 0.08);
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.12\)\]:hover {
+    background-color: rgba(99, 102, 241, 0.12);
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.15\)\]:hover {
+    background-color: rgba(99, 102, 241, 0.15);
+}
+
+.light .hover\:border-\[rgba\(102\,126\,234\,0\.4\)\]:hover {
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+.light .bg-\[rgba\(102\,126\,234\,0\.08\)\] {
+    background-color: rgba(99, 102, 241, 0.08);
+}
+
+.light .bg-\[rgba\(102\,126\,234\,0\.15\)\] {
+    background-color: rgba(99, 102, 241, 0.15);
+}
+
+.light .hover\:text-white:hover {
+    color: #1a1a2e;
+}
+
+/* Message bubbles in light mode */
+.light .bg-\[\#1a1a2e\].bg-gradient-to-r {
+    background: linear-gradient(to right, #667eea, #764ba2) !important;
+}
+
+.light .bg-\[\#1a1a2e\].border {
+    background-color: #f3f4f6;
+    border-color: #e5e7eb;
+}
+
+/* ============================================
+   LIGHT THEME - COMPREHENSIVE FIXES
+   ============================================ */
+
+:root {
+    --light-bg-primary: #f1f5f9;
+    --light-bg-secondary: #f8f9fa;
+    --light-bg-tertiary: #f1f3f5;
+    --light-bg-hover: #e9ecef;
+    --light-text-primary: #1a1a2e;
+    --light-text-secondary: #495057;
+    --light-text-muted: #6c757d;
+    --light-border: #dee2e6;
+    --light-border-hover: #adb5bd;
+}
+
+.light {
+    color-scheme: light;
+}
+
+/* Base backgrounds */
+.light body,
+.light #app,
+.light [data-theme="light"] {
+    background-color: var(--light-bg-primary) !important;
+    color: var(--light-text-primary) !important;
+}
+
+/* Main layout areas */
+.light .bg-\[\#0f0f1a\] {
+    background-color: var(--light-bg-primary) !important;
+}
+
+.light .bg-\[\#1a1a2e\] {
+    background-color: var(--light-bg-secondary) !important;
+}
+
+.light .bg-\[\#1e1e32\] {
+    background-color: var(--light-bg-tertiary) !important;
+}
+
+.light .bg-\[\#252542\] {
+    background-color: var(--light-bg-hover) !important;
+}
+
+/* Sidebar specific */
+.light aside,
+.light .min-h-screen,
+.light .flex-col {
+    background-color: var(--light-bg-secondary) !important;
+}
+
+/* Text colors - make sure they're visible */
+.light .text-white {
+    color: var(--light-text-primary) !important;
+}
+
+.light .text-\[\#d0d0d0\] {
+    color: var(--light-text-secondary) !important;
+}
+
+.light .text-\[\#b0b0b0\] {
+    color: var(--light-text-muted) !important;
+}
+
+.light .text-\[\#888\] {
+    color: var(--light-text-muted) !important;
+}
+
+.light .text-\[\#666\] {
+    color: var(--light-text-muted) !important;
+}
+
+.light .text-\[\#555\] {
+    color: var(--light-text-muted) !important;
+}
+
+.light .text-\[\#444\] {
+    color: var(--light-text-muted) !important;
+}
+
+.light .text-\[\#333\] {
+    color: var(--light-text-secondary) !important;
+}
+
+/* Border colors */
+.light .border-\[\#2d2d4a\] {
+    border-color: var(--light-border) !important;
+}
+
+.light .border-\[rgba\(102\,126\,234\,0\.12\)\] {
+    border-color: var(--light-border) !important;
+}
+
+.light .border-\[rgba\(102\,126\,234\,0\.25\)\] {
+    border-color: #c7d2fe !important;
+}
+
+/* Hover states */
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.08\)\]:hover {
+    background-color: var(--light-bg-hover) !important;
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.12\)\]:hover {
+    background-color: var(--light-bg-hover) !important;
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.15\)\]:hover {
+    background-color: var(--light-bg-hover) !important;
+}
+
+.light .hover\:border-\[rgba\(102\,126\,234\,0\.4\)\]:hover {
+    border-color: #818cf8 !important;
+}
+
+.light .hover\:text-white:hover {
+    color: var(--light-text-primary) !important;
+}
+
+/* Background utilities */
+.light .bg-\[rgba\(102\,126\,234\,0\.08\)\] {
+    background-color: var(--light-bg-hover) !important;
+}
+
+.light .bg-\[rgba\(102\,126\,234\,0\.15\)\] {
+    background-color: var(--light-bg-hover) !important;
+}
+
+/* Cards and elevated surfaces */
+.light .rounded-xl,
+.light .rounded-2xl,
+.light .rounded-lg {
+    background-color: var(--light-bg-secondary);
+}
+
+.light .rounded-xl.bg-\[\#1a1a2e\],
+.light .rounded-2xl.bg-\[\#1a1a2e\] {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Input fields */
+.light input,
+.light textarea,
+.light select {
+    background-color: var(--light-bg-primary) !important;
+    color: var(--light-text-primary) !important;
+    border-color: var(--light-border) !important;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+    color: var(--light-text-muted) !important;
+}
+
+.light input:focus,
+.light textarea:focus,
+.light select:focus {
+    border-color: #667eea !important;
+    outline: none;
+}
+
+/* Message bubbles - USER (right side, purple gradient) */
+.light .bg-gradient-to-r.from-\[\#667eea\].to-\[\#764ba2\] {
+    background: linear-gradient(to right, #667eea, #764ba2) !important;
+    color: white !important;
+}
+
+/* Message bubbles - AI (left side, dark card) */
+.light .bg-\[\#1a1a2e\].border.border-\[\#2d2d4a\] {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+    color: var(--light-text-primary) !important;
+}
+
+/* Typing indicator */
+.light .bg-\[\#1a1a2e\].rounded-2xl.rounded-bl-md {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Chat items in sidebar */
+.light [class*="chats"] a,
+.light .flex.items-center.gap-3.p-3 {
+    background-color: var(--light-bg-secondary) !important;
+}
+
+.light [class*="chats"] a:hover,
+.light .flex.items-center.gap-3.p-3:hover {
+    background-color: var(--light-bg-hover) !important;
+}
+
+.light [class*="chats"] [class*="border-transparent"] {
+    border-color: transparent !important;
+}
+
+/* Agent selector dropdown */
+.light .bg-\[\#1e1e32\] {
+    background-color: var(--light-bg-primary) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Admin panel light theme */
+.light .bg-\[\#1a1a2e\].border.border-\[\#2d2d4a\] {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+}
+
+.light .hover\:bg-\[rgba\(231\,76\,60\,0\.15\)\]:hover {
+    background-color: #fee2e2 !important;
+}
+
+.light .hover\:bg-\[rgba\(245\,158\,11\,0\.2\)\]:hover {
+    background-color: #fef3c7 !important;
+}
+
+/* Links */
+.light a {
+    color: #667eea;
+}
+
+.light a:hover {
+    color: #764ba2;
+}
+
+/* Stats cards in admin */
+.light .grid.grid-cols-2 .p-4.rounded-xl {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Quick action cards */
+.light .p-5.rounded-xl.bg-\[\#1a1a2e\] {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* User avatar placeholder */
+.light .bg-gradient-to-r.from-\[\#667eea\].to-\[\#764ba2\] {
+    background: linear-gradient(to right, #667eea, #764ba2) !important;
+}
+
+/* Footer area */
+.light .border-t {
+    border-color: var(--light-border) !important;
+}
+
+/* Active/selected states */
+.light [class*="bg-\[rgba\(102\,126\,234\,0\.15\)\]"] {
+    background-color: #e0e7ff !important;
+}
+
+/* Input field in light theme */
+.light input[type="text"],
+.light input[type="email"],
+.light input[type="password"],
+.light textarea {
+    background-color: white !important;
+    color: #1a1a2e !important;
+    border: 2px solid #e5e7eb !important;
+}
+
+.light input[type="text"]:focus,
+.light textarea:focus {
+    border-color: #667eea !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Dropdown in light theme */
+.light .rounded-xl.bg-\[\#1e1e32\] {
+    background-color: white !important;
+    border: 2px solid #e5e7eb !important;
+}
+
+/* Agent dropdown items */
+.light .text-\[\#999\] {
+    color: #6b7280 !important;
+}
+
+.light .text-\[\#777\] {
+    color: #9ca3af !important;
+}
+
+/* Send button */
+.light button[type="submit"].rounded-xl.bg-gradient-to-r {
+    opacity: 1 !important;
+}
+
+/* Typing indicator in light theme */
+.light .bg-\[\#1a1a2e\].rounded-2xl.rounded-bl-md {
+    background-color: white !important;
+    border: 2px solid #e5e7eb !important;
+}
+
+/* Pin button in light theme */
+.light .text-\[\#888\] {
+    color: #9ca3af !important;
+}
+
+.light .text-\[\#f59e0b\] {
+    color: #d97706 !important;
+}
+
+/* Navigation links in light theme */
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.12\)\]:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* Admin badge */
+.light .bg-\[rgba\(231\,76\,60\,0\.2\)\] {
+    background-color: #fee2e2 !important;
+    color: #dc2626 !important;
+}
+
+.light .hover\:bg-\[rgba\(231\,76\,60\,0\.3\)\]:hover {
+    background-color: #fecaca !important;
+}
+
+/* Logout button */
+.light .text-\[\#e74c3c\] {
+    color: #dc2626 !important;
+}
+
+.light .hover\:bg-\[rgba\(231\,76\,60\,0\.15\)\]:hover {
+    background-color: #fee2e2 !important;
+}
+
+/* Theme selector text */
+.light .text-\[\#b0b0b0\] {
+    color: #6b7280 !important;
+}
+
+/* ============================================
+   LIGHT THEME - COMPREHENSIVE FIXES
+   ============================================ */
+
+/* Main layout */
+.light {
+       --light-bg: #f8fafc;
+    --light-bg-secondary: #f1f5f9;
+    --light-bg-tertiary: #e2e8f0;
+    --light-text: #1e293b;
+    --light-text-secondary: #475569;
+    --light-text-muted: #94a3b8;
+    --light-border: #e2e8f0;
+    --light-border-hover: #cbd5e1;
+}
+
+/* Body and main container */
+.light body,
+.light #app,
+.light .bg-\[\#0f0f1a\] {
+    background-color: var(--light-bg) !important;
+    color: var(--light-text) !important;
+}
+
+/* Sidebar */
+.light aside,
+.light .bg-gradient-to-b.from-\[\#1a1a2e\].to-\[\#16162a\] {
+       background: linear-gradient(to bottom, #f1f5f9, #e2e8f0) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Sidebar items */
+.light .border-\[rgba\(102\,126\,234\,0\.15\)\] {
+    border-color: var(--light-border) !important;
+}
+
+.light .border-\[rgba\(102\,126\,234\,0\.1\)\] {
+    border-color: var(--light-border) !important;
+}
+
+/* New chat button */
+.light .bg-gradient-to-r.from-\[\#667eea\].to-\[\#764ba2\] {
+    opacity: 1 !important;
+}
+
+/* Chat items in sidebar */
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.08\)\]:hover {
+    background-color: #f1f5f9 !important;
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.15\)\]:hover {
+    background-color: #f1f5f9 !important;
+}
+
+.light .hover\:border-\[rgba\(102\,126\,234\,0\.4\)\]:hover {
+    border-color: #94a3b8 !important;
+}
+
+/* Active chat item */
+.light .bg-\[rgba\(102\,126\,234\,0\.15\)\] {
+    background-color: #dbeafe !important;
+}
+
+.light .border-\[rgba\(102\,126\,234\,0\.25\)\] {
+    border-color: #93c5fd !important;
+}
+
+/* Chat item text colors */
+.light .text-\[\#555\],
+.light .text-\[\#666\],
+.light .text-\[\#777\],
+.light .text-\[\#888\] {
+    color: var(--light-text-muted) !important;
+}
+
+.light .text-\[\#999\] {
+    color: var(--light-text-muted) !important;
+}
+
+/* Welcome screen / Empty state */
+.light .text-\[\#444\] {
+    color: var(--light-text-muted) !important;
+}
+
+/* Main content area */
+.light .bg-\[\#0f0f1a\] {
+    background-color: var(--light-bg) !important;
+}
+
+.light .bg-\[\#1a1a2e\] {
+    background-color: var(--light-bg-secondary) !important;
+}
+
+.light .bg-\[\#1e1e32\] {
+    background-color: var(--light-bg) !important;
+}
+
+/* Header */
+.light header {
+    background-color: var(--light-bg) !important;
+}
+
+.light .border-b-\[rgba\(102\,126\,234\,0\.12\)\] {
+    border-color: var(--light-border) !important;
+}
+
+/* Navigation text */
+.light .text-\[\#b0b0b0\] {
+    color: var(--light-text-secondary) !important;
+}
+
+/* Welcome message cards */
+.light .bg-\[rgba\(102\,126\,234\,0\.05\)\] {
+    background-color: #f1f5f9 !important;
+    border-color: var(--light-border) !important;
+}
+
+.light .border-\[rgba\(102\,126\,234\,0\.08\)\] {
+    border-color: var(--light-border) !important;
+}
+
+/* Welcome features */
+.light .from-\[\#667eea\]\.to-\[\#764ba2\] {
+    background: linear-gradient(to right, #667eea, #764ba2) !important;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Message input area */
+.light input,
+.light textarea {
+    background-color: var(--light-bg) !important;
+    color: var(--light-text) !important;
+    border-color: var(--light-border) !important;
+}
+
+.light input:focus,
+.light textarea:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Agent selector */
+.light .bg-\[\#1e1e32\].border-\[\#2d2d4a\] {
+    background-color: var(--light-bg) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Agent selector hover */
+.light .hover\:border-\[\#667eea\] {
+    border-color: #667eea !important;
+}
+
+/* Dropdown menu */
+.light .bg-\[\#1a1a2e\].border.border-\[\#2d2d4a\] {
+    background-color: var(--light-bg) !important;
+    border-color: var(--light-border) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Message bubbles - AI */
+.light .bg-\[\#1a1a2e\].border.border-\[\#2d2d4a\] {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Typing indicator */
+.light .bg-\[\#1a1a2e\].rounded-2xl.rounded-bl-md {
+    background-color: var(--light-bg-secondary) !important;
+    border-color: var(--light-border) !important;
+}
+
+/* Pin button */
+.light .text-\[\#f59e0b\] {
+    color: #d97706 !important;
+}
+
+/* Logout button */
+.light .text-\[\#e74c3c\] {
+    color: #dc2626 !important;
+}
+
+/* Admin badge */
+.light .bg-\[rgba\(231\,76\,60\,0\.2\)\] {
+    background-color: #fee2e2 !important;
+    color: #dc2626 !important;
+}
+
+/* Sidebar footer */
+.light .bg-\[rgba\(102\,126\,234\,0\.08\)\] {
+    background-color: #f1f5f9 !important;
+}
+
+/* Scrollbar in light mode */
+.light ::-webkit-scrollbar {
+    width: 6px;
+}
+
+.light ::-webkit-scrollbar-track {
+    background: var(--light-bg-secondary);
+}
+
+.light ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Sidebar footer in light theme */
+.light aside .border-t-\[rgba\(102\,126\,234\,0\.1\)\] {
+    border-color: var(--light-border) !important;
+}
+
+.light aside .bg-\[rgba\(102\,126\,234\,0\.08\)\] {
+    background-color: #e2e8f0 !important;
+}
+
+/* Theme dropdown in light theme */
+.light .absolute.right-0.top-full.mt-1.w-36 {
+    background-color: var(--light-bg) !important;
+    border-color: var(--light-border) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+.light .absolute.right-0.top-full.mt-1.w-36 .text-\[\#b0b0b0\] {
+    color: var(--light-text-secondary) !important;
+}
+
+.light .absolute.right-0.top-full.mt-1.w-36 .hover\:bg-\[rgba\(102\,126\,234\,0\.12\)\]:hover {
+    background-color: #e2e8f0 !important;
+}
+
+/* Navigation buttons hover in light theme */
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.15\)\]:hover {
+    background-color: #e2e8f0 !important;
+}
+
+/* Menu button in light theme */
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.12\)\] {
+    background-color: transparent !important;
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.12\)\]:hover {
+    background-color: #e2e8f0 !important;
+}
+
+/* Settings/Agents/Logout buttons in light theme */
+.light .text-\[\#e74c3c\] {
+    color: #dc2626 !important;
+}
+
+.light .hover\:bg-\[rgba\(231\,76\,60\,0\.15\)\]:hover {
+    background-color: #fee2e2 !important;
+}
+
+/* Admin button in light theme */
+.light .bg-\[rgba\(231\,76\,60\,0\.2\)\] {
+    background-color: #fee2e2 !important;
+    color: #dc2626 !important;
+}
+
+.light .hover\:bg-\[rgba\(231\,76\,60\,0\.3\)\]:hover {
+    background-color: #fecaca !important;
+}
+
+/* Sidebar footer inner div - white background in light theme */
+.light aside .rounded-xl.bg-\[rgba\(102\,126\,234\,0\.08\)\] {
+    background-color: #f1f5f9 !important;
+}
+
+/* Sidebar footer container - remove border in light theme */
+.light aside .border-t-\[rgba\(102\,126\,234\,0\.1\)\] {
+    border-color: #e2e8f0 !important;
+}
+
+/* User avatar area in light theme */
+.light aside .rounded-xl .text-gray-800 {
+    color: #1e293b !important;
+}
+
+.light aside .rounded-xl .text-gray-500 {
+    color: #64748b !important;
+}
+
+/* Sidebar footer - WHITE background in light theme */
+.light aside .p-3.border-t {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+}
+
+/* Sidebar footer inner rounded area */
+.light aside .rounded-xl {
+    background-color: #ffffff !important;
+}
+
+/* User avatar gradient circle in light theme */
+.light aside .bg-gradient-to-r.from-\[\#667eea\].to-\[\#764ba2\] {
+    background: linear-gradient(to right, #667eea, #764ba2) !important;
+}
+
+/* Footer user text colors */
+.light aside .text-gray-800 {
+    color: #1e293b !important;
+}
+
+.light aside .text-gray-500 {
+    color: #64748b !important;
+}
+
+/* ULTRA-SPECIFIC - Footer white background in light theme */
+html.light aside section:last-of-type,
+html.light aside > div:last-child,
+html.light .light aside {
+    background-color: #ffffff !important;
+}
+
+/* Footer container */
+.light aside div.p-3 {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+}
+
+/* Footer inner rounded div */
+.light aside div.p-2.rounded-xl {
+    background-color: #ffffff !important;
+}
+
+/* User name and status text */
+.light aside .text-gray-800,
+.light aside div[class*="text-gray-800"] {
+    color: #1e293b !important;
+}
+
+.light aside .text-gray-500,
+.light aside div[class*="text-gray-500"] {
+    color: #64748b !important;
+}
+
+/* Sidebar footer online indicator */
+.light aside .bg-green-500 {
+    background-color: #22c55e !important;
+}
+
+/* Smooth theme transitions */
+.theme-transition,
+.theme-transition * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+/* Ensure smooth transitions for all theme-related elements */
+html.transitioning *,
+html.transitioning {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+}
+
+/* Global smooth theme transition - applies to all elements when theme changes */
+html.theme-changing,
+html.theme-changing *,
+html.theme-changing *::before,
+html.theme-changing *::after {
+    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, fill 0.25s ease, stroke 0.25s ease !important;
+    transition-delay: 0s !important;
+}
+
+/* Default transitions for theme-aware elements */
+html {
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+body {
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* When data-theme changes, briefly add the transitioning class for smooth animation */
+[data-theme] * {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* =============================================
+   COMPREHENSIVE LIGHT THEME OVERRIDES
+   These override dark backgrounds/text/borders
+   when .light class is on <html>
+   ============================================= */
+
+.light .bg-\[\#0f0f1a\],
+.light .bg-\[\#1a1a2e\],
+.light .bg-\[\#1e1e32\] {
+    background-color: #ffffff;
+}
+
+.light .bg-\[\#252542\],
+.light .bg-\[\#2d2d4a\],
+.light .bg-\[\#3d3d5a\] {
+    background-color: #f1f5f9;
+}
+
+.light .bg-\[\#1a1a2e\].border,
+.light .bg-\[\#1e1e32\].border {
+    background-color: #ffffff;
+    border-color: #e5e7eb !important;
+}
+
+.light .text-white {
+    color: #1a1a2e;
+}
+
+.light .text-\[\#e0e0e0\],
+.light .text-\[\#d0d0d0\],
+.light .text-\[\#b0b0b0\] {
+    color: #1a1a2e;
+}
+
+.light .text-\[\#888\],
+.light .text-\[\#777\],
+.light .text-\[\#666\],
+.light .text-\[\#555\],
+.light .text-\[\#444\],
+.light .text-\[\#999\] {
+    color: #6b7280;
+}
+
+.light .border-\[\#2d2d4a\],
+.light .border-\[rgba\(102\,126\,234\,0\.1\)\],
+.light .border-\[rgba\(102\,126\,234\,0\.12\)\],
+.light .border-\[rgba\(102\,126\,234\,0\.15\)\] {
+    border-color: #e5e7eb !important;
+}
+
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.08\)\]:hover,
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.12\)\]:hover,
+.light .hover\:bg-\[rgba\(102\,126\,234\,0\.15\)\]:hover {
+    background-color: rgba(102, 126, 234, 0.08) !important;
+}
+
+/* Gradient backgrounds in light mode */
+.light .bg-gradient-to-b.from-\[\#1a1a2e\].to-\[\#16162a\] {
+    background-image: linear-gradient(to bottom, #ffffff, #f8f9fa);
+}
+
+/* Header gradient - keep the brand gradient */
+.light header.bg-\[\#1a1a2e\] {
+    background-color: #ffffff;
+}
+
+/* Sidebar background */
+.light aside {
+    background-color: #f8f9fa !important;
+    background-image: none !important;
+}
+
+/* Make sure text in cards is dark in light mode */
+.light .text-gray-500,
+.light .text-gray-600,
+.light .text-gray-700 {
+    color: #4b5563;
+}
+
+/* Buttons with specific dark backgrounds */
+.light .bg-\[\#1a1a2e\].rounded-xl,
+.light .bg-\[\#1a1a2e\].rounded-2xl {
+    background-color: #ffffff;
+}
+
+/* COMPREHENSIVE TRANSITION - applies to all elements for smooth theme switching */
+html.theme-changing *,
+html.theme-changing *::before,
+html.theme-changing *::after,
+html.transitioning *,
+html.transitioning *::before,
+html.transitioning *::after {
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                fill 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                stroke 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transition-delay: 0s !important;
+}
+
+/* =============================================
+   CSS VARIABLE THEME SYSTEM
+   All theme colors defined as CSS variables.
+   When .light class toggles, all elements transition
+   simultaneously via the same CSS variable change.
+   ============================================= */
+
+:root,
+:root.dark {
+    --theme-bg-app: #0f0f1a;
+    --theme-bg-sidebar: #1a1a2e;
+    --theme-bg-header: #1a1a2e;
+    --theme-bg-card: #1a1a2e;
+    --theme-bg-input: #1e1e32;
+    --theme-bg-hover: rgba(102, 126, 234, 0.08);
+    --theme-bg-hover-strong: rgba(102, 126, 234, 0.15);
+    --theme-text-primary: #e0e0e0;
+    --theme-text-secondary: #b0b0b0;
+    --theme-text-muted: #888888;
+    --theme-text-faint: #666666;
+    --theme-text-dim: #555555;
+    --theme-text-dimmer: #444444;
+    --theme-text-dimmest: #333333;
+    --theme-border: #2d2d4a;
+    --theme-border-light: rgba(102, 126, 234, 0.1);
+    --theme-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+:root.light,
+.light {
+    /* Main body background: a clearly visible soft gray so the white sidebar
+       (--theme-bg-sidebar) reads as a distinct surface next to it. Tailwind
+       slate-200 sits between slate-100 (too close to white) and slate-300
+       (too dark) — gives a clean "canvas" look that makes cards/inputs pop. */
+    --theme-bg-app: #e2e8f0;
+    --theme-bg-sidebar: #f8f9fa;
+    --theme-bg-header: #ffffff;
+    --theme-bg-card: #ffffff;
+    --theme-bg-input: #ffffff;
+    --theme-bg-hover: rgba(102, 126, 234, 0.06);
+    --theme-bg-hover-strong: rgba(102, 126, 234, 0.12);
+    --theme-text-primary: #1a1a2e;
+    --theme-text-secondary: #374151;
+    --theme-text-muted: #6b7280;
+    --theme-text-faint: #6b7280;
+    --theme-text-dim: #9ca3af;
+    --theme-text-dimmer: #d1d5db;
+    --theme-text-dimmest: #e5e7eb;
+    --theme-border: #e5e7eb;
+    --theme-border-light: rgba(102, 126, 234, 0.1);
+    --theme-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Global smooth transition on all theme-related properties.
+   Because this is on :root, every element using var(--theme-*)
+   transitions together in the same paint frame. */
+:root,
+:root *,
+:root *::before,
+:root *::after {
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                fill 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Apply variables to common elements */
+body, html {
+    background-color: var(--theme-bg-app);
+    color: var(--theme-text-primary);
+}
+
+/* Override the most visible dark classes to use CSS variables.
+   These cover the sidebar, header, and main backgrounds. */
+.theme-bg-app { background-color: var(--theme-bg-app) !important; }
+.theme-bg-sidebar { background-color: var(--theme-bg-sidebar) !important; }
+.theme-bg-header { background-color: var(--theme-bg-header) !important; }
+.theme-bg-card { background-color: var(--theme-bg-card) !important; }
+.theme-bg-input { background-color: var(--theme-bg-input) !important; }
+.theme-text-primary { color: var(--theme-text-primary) !important; }
+.theme-text-secondary { color: var(--theme-text-secondary) !important; }
+.theme-text-muted { color: var(--theme-text-muted) !important; }
+.theme-text-faint { color: var(--theme-text-faint) !important; }
+.theme-border { border-color: var(--theme-border) !important; }
+
+/* =============================================
+   VIEW TRANSITIONS API - SMOOTH THEME SWITCH
+   When browser supports it, the entire page crossfades
+   atomically when the theme changes
+   ============================================= */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.3s;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+    animation-name: theme-fade-out;
+}
+
+::view-transition-new(root) {
+    animation-name: theme-fade-in;
+}
+
+@keyframes theme-fade-out {
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes theme-fade-in {
+    from {
+        opacity: 0;
+    }
+}
+
+/* Disable View Transitions for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none !important;
+    }
+}
+
+/* Fallback body fade transition */
+body {
+    transition: opacity 0.15s ease;
+}
+
+/* Force body/html to use theme variables with high priority */
+html, body {
+    background-color: var(--theme-bg-app) !important;
+    color: var(--theme-text-primary) !important;
+}

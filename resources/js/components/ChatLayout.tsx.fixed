@@ -1,0 +1,633 @@
+import { useState, useEffect, useRef } from 'react';
+import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor } from 'lucide-react';
+import { useMemo } from 'react';
+
+// Provider icons mapping
+const providerIcons: Record<string, { icon: string; gradient: string }> = {
+    openai: { icon: '🤖', gradient: 'from-[#10a37f] to-[#0d8a6a]' },
+    anthropic: { icon: '🧠', gradient: 'from-[#c79a5e] to-[#a67c3d]' },
+    google: { icon: '✨', gradient: 'from-[#4285f4] to-[#357abd]' },
+    gemini: { icon: '✨', gradient: 'from-[#4285f4] to-[#357abd]' },
+    perplexity: { icon: '🔍', gradient: 'from-[#e67e22] to-[#c0392b]' },
+    groq: { icon: '⚡', gradient: 'from-[#9b59b6] to-[#8e44ad]' },
+    xai: { icon: '🌀', gradient: 'from-[#1a1a1a] to-[#333333]' },
+    deepseek: { icon: '🔭', gradient: 'from-[#0077b6] to-[#005f8a]' },
+    mistral: { icon: '🌊', gradient: 'from-[#00b4d8] to-[#0077b6]' },
+    azure: { icon: '☁️', gradient: 'from-[#0078d4] to-[#005a9e]' },
+    bedrock: { icon: '🪨', gradient: 'from-[#ff9900] to-[#e68a00]' },
+    ollama: { icon: '🐳', gradient: 'from-[#fff] to-[#e0e0e0]' },
+    openrouter: { icon: '🌐', gradient: 'from-[#667eea] to-[#764ba2]' },
+    default: { icon: '🤖', gradient: 'from-[#667eea] to-[#764ba2]' },
+};
+
+function getProviderIcon(provider: string) {
+    return providerIcons[provider.toLowerCase()] || providerIcons.default;
+}
+
+// Format message content with proper list handling
+function formatMessage(text: string): React.ReactNode[] {
+    if (!text) return [text];
+    
+    // Split into lines preserving empty lines
+    const lines = text.split(/\n/);
+    const result: React.ReactNode[] = [];
+    let bulletBuffer: string[] = [];
+    let listKey = 0;
+    
+    const flushBullets = () => {
+        if (bulletBuffer.length > 0) {
+            result.push(
+                <ul key={`ul-${listKey++}`} className="my-2 ml-5 space-y-1.5 list-none">
+                    {bulletBuffer.map((item, i) => (
+                        <li key={i} className="flex items-start">
+                            <span className="text-[#667eea] mr-2 mt-0.5 flex-shrink-0">•</span>
+                            <span className="leading-relaxed">{formatInline(item.trim())}</span>
+                        </li>
+                    ))}
+                </ul>
+            );
+            bulletBuffer = [];
+        }
+    };
+    
+    lines.forEach((line, idx) => {
+        const trimmed = line.trim();
+        
+        // Empty line - flush bullets and add spacing
+        if (trimmed === '') {
+            flushBullets();
+            result.push(<div key={`sp-${idx}`} className="h-2" />);
+            return;
+        }
+        
+        // Bullet point (starts with • or - or * followed by space)
+        const bulletMatch = trimmed.match(/^([•*\-])\s+(.*)$/);
+        if (bulletMatch) {
+            bulletBuffer.push(bulletMatch[2]);
+            return;
+        }
+        
+        // Numbered item (starts with number, dot, space)
+        const numMatch = trimmed.match(/^(\d+[.)])\s+(.*)$/);
+        if (numMatch) {
+            flushBullets();
+            result.push(
+                <div key={`n-${idx}`} className="flex items-start my-1.5 ml-5">
+                    <span className="text-[#667eea] mr-2 mt-0.5 flex-shrink-0 font-medium">{numMatch[1]}</span>
+                    <span className="leading-relaxed">{formatInline(numMatch[2])}</span>
+                </div>
+            );
+            return;
+        }
+        
+        // Regular text line - flush bullets first
+        flushBullets();
+        result.push(
+            <p key={`p-${idx}`} className="my-1.5 leading-relaxed">
+                {formatInline(trimmed)}
+            </p>
+        );
+    });
+    
+    // Flush any remaining bullets
+    flushBullets();
+    return result;
+}
+
+// Format inline styles (bold, italic, code, links, citations)
+function formatInline(text: string): React.ReactNode {
+    if (!text) return text;
+    
+    // Handle citation markers [1], [2], etc. first (before other processing)
+    const citationParts = text.split(/(\[\d+\])/g);
+    
+    return citationParts.map((part, i) => {
+        // Citation marker [1], [2], etc.
+        const citationMatch = part.match(/^\[(\d+)\]$/);
+        if (citationMatch) {
+            return (
+                <sup 
+                    key={`cite-${i}`} 
+                    className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-semibold rounded-full bg-[rgba(102,126,234,0.25)] text-[#667eea] ml-0.5 mr-0.5 align-super hover:bg-[rgba(102,126,234,0.4)] cursor-help"
+                    title={`Source ${citationMatch[1]}`}
+                >
+                    {citationMatch[1]}
+                </sup>
+            );
+        }
+        
+        // Handle bold **text**
+        const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
+        return boldParts.map((bp, j) => {
+            if (bp.startsWith('**') && bp.endsWith('**')) {
+                return <strong key={`${i}-${j}`} className="font-semibold">{bp.slice(2, -2)}</strong>;
+            }
+            // Handle inline code `text`
+            const codeParts = bp.split(/(`[^`]+`)/g);
+            return codeParts.map((cp, k) => {
+                if (cp.startsWith('`') && cp.endsWith('`')) {
+                    return <code key={`${i}-${j}-${k}`} className="px-1.5 py-0.5 rounded bg-[rgba(102,126,234,0.2)] text-[#667eea] text-xs font-mono">{cp.slice(1, -1)}</code>;
+                }
+                return cp;
+            });
+        });
+    });
+}
+
+interface Agent {
+    id: number;
+    name: string;
+    provider: string;
+    is_default: boolean;
+}
+
+interface Message {
+    id?: number;
+    role: 'user' | 'assistant';
+    message: string;
+    created_at?: string;
+}
+
+interface Chat {
+    id: number;
+    title: string;
+    messages: Message[];
+    created_at: string;
+    is_pinned?: boolean;
+    pinned_order?: number | null;
+}
+
+interface ChatLayoutProps {
+    agents: Agent[];
+    chats: Chat[];
+    currentChat?: Chat;
+    user?: {
+        is_admin: boolean;
+        theme?: 'light' | 'dark' | 'system';
+    };
+    children: React.ReactNode;
+}
+
+export default function ChatLayout({
+    agents,
+    chats,
+    currentChat,
+    user,
+    children
+}: ChatLayoutProps) {
+    // Safety check - ensure user has a default structure
+    const safeUser = user ?? { is_admin: false, theme: 'system' };
+    
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+    const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const themeDropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        // Apply theme on initial load
+        applyTheme(effectiveTheme || 'system');
+    }, [effectiveTheme]);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setAgentDropdownOpen(false);
+            }
+            if (themeDropdownRef.current && !themeDropdownRef.current.contains(event.target as Node)) {
+                setThemeDropdownOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diff = now.getTime() - date.getTime();
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        if (days === 0) return 'Today';
+        if (days === 1) return 'Yesterday';
+        if (days < 7) return `${days}d ago`;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const getPreviewText = (chat: Chat) => {
+        if (chat.messages.length === 0) return 'No messages';
+        const lastMsg = chat.messages[chat.messages.length - 1];
+        return lastMsg.message.length > 35 ? lastMsg.message.substring(0, 35) + '...' : lastMsg.message;
+    };
+
+    const handleLogout = (e: React.FormEvent<HTMLFormElement>) => {
+        const form = e.currentTarget;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = '_token';
+        input.value = csrfToken;
+        form.appendChild(input);
+    };
+
+    const handleTogglePin = async (e: React.MouseEvent, chatId: number, isPinned: boolean) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        try {
+            const response = await fetch(`/chat/${chatId}/pin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            });
+            
+            if (response.ok) {
+                // Reload the page to reflect changes
+                window.location.reload();
+            }
+        } catch (error) {
+            console.error('Failed to toggle pin:', error);
+        }
+    };
+
+    const handleThemeChange = async (theme: 'light' | 'dark' | 'system') => {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        try {
+            const response = await fetch('/profile/theme', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({ theme }),
+            });
+            
+            if (response.ok) {
+                // Apply theme immediately
+                applyTheme(theme);
+                setThemeDropdownOpen(false);
+            }
+        } catch (error) {
+            console.error('Failed to change theme:', error);
+        }
+    };
+
+    const applyTheme = (theme: 'light' | 'dark' | 'system') => {
+        const root = document.documentElement;
+        if (theme === 'system') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            root.classList.toggle('light', !prefersDark);
+            root.classList.toggle('dark', prefersDark);
+        } else {
+            root.classList.toggle('light', theme === 'light');
+            root.classList.toggle('dark', theme === 'dark');
+        }
+    };
+
+    const themeClasses = effectiveTheme === 'light' 
+        ? 'bg-white text-[#1a1a2e]'
+        : effectiveTheme === 'dark' || !effectiveTheme
+            ? 'bg-[#0f0f1a] text-[#e0e0e0]'
+            : 'bg-[#0f0f1a] text-[#e0e0e0]'; // system default to dark
+
+    return (
+        <div className={`flex h-screen overflow-hidden ${themeClasses}`}>
+            {/* Mobile Sidebar Overlay */}
+            {sidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black/70 z-40 lg:hidden backdrop-blur-sm"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
+            {/* Sidebar */}
+            <aside className={`
+                fixed lg:relative z-50 lg:z-auto
+                w-[280px] h-full
+                bg-gradient-to-b from-[#1a1a2e] to-[#16162a]
+                border-r border-[rgba(102,126,234,0.15)]
+                transform transition-transform duration-300 ease-out
+                ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                flex flex-col
+            `}>
+                {/* Sidebar Header */}
+                <div className="p-4 border-b border-[rgba(102,126,234,0.1)]">
+                    <a href="/chat" className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white font-semibold text-sm shadow-lg shadow-[rgba(102,126,234,0.3)] hover:shadow-xl hover:-translate-y-0.5 transition-all">
+                        <Plus className="w-4 h-4" /> New Chat
+                    </a>
+                </div>
+
+                {/* Chat List */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    {chats.length === 0 ? (
+                        <div className={`text-center py-12 px-4 ${effectiveTheme === 'light' ? 'text-gray-400' : 'text-[#555]'}`}>
+                            <div className="text-4xl mb-3 opacity-50">💬</div>
+                            <p className="text-xs opacity-70">No conversations yet</p>
+                        </div>
+                    ) : (
+                        chats.map((chat) => (
+                            <div key={chat.id} className={`
+                                flex items-center gap-2 p-2 rounded-xl transition-all duration-200 group
+                                ${currentChat?.id === chat.id ? 'bg-[rgba(102,126,234,0.15)] border border-[rgba(102,126,234,0.25)]' : 'border border-transparent hover:bg-[rgba(102,126,234,0.08)]'}
+                            `}>
+                                <a href={`/chat/${chat.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${chat.is_pinned ? 'bg-gradient-to-r from-[#f59e0b] to-[#d97706]' : 'bg-gradient-to-r from-[#667eea] to-[#764ba2]'}`}>
+                                        {chat.is_pinned ? '📌' : '💬'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between">
+                                            <span className={`text-sm font-medium truncate ${effectiveTheme === 'light' ? 'text-gray-800' : 'text-white'}`}>{chat.title}</span>
+                                            <span className={`text-[10px] ml-2 ${effectiveTheme === 'light' ? 'text-gray-400' : 'text-[#555]'}`}>{formatDate(chat.created_at)}</span>
+                                        </div>
+                                        <p className={`text-xs truncate ${effectiveTheme === 'light' ? 'text-gray-500' : 'text-[#666]'}`}>{getPreviewText(chat)}</p>
+                                    </div>
+                                </a>
+                                <button
+                                    onClick={(e) => handleTogglePin(e, chat.id, chat.is_pinned)}
+                                    className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all ${chat.is_pinned ? 'hover:bg-[rgba(245,158,11,0.2)] text-[#f59e0b]' : 'hover:bg-[rgba(102,126,234,0.2)] text-[#888]'}`}
+                                    title={chat.is_pinned ? 'Unpin chat' : 'Pin chat'}
+                                >
+                                    {chat.is_pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Sidebar Footer */}
+                <div className="p-3 border-t border-[rgba(102,126,234,0.1)]">
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-[rgba(102,126,234,0.08)]">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center text-xs">👤</div>
+                        <div className="flex-1 min-w-0">
+                            <div className={`text-xs font-medium ${effectiveTheme === 'light' ? 'text-gray-800' : 'text-white'}`}>User</div>
+                            <div className={`text-[10px] ${effectiveTheme === 'light' ? 'text-gray-500' : 'text-[#555]'}`}>Online</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className={`flex-1 flex flex-col min-w-0 ${effectiveTheme === 'light' ? 'bg-gray-50' : 'bg-[#0f0f1a]'}`}>
+                {/* Header */}
+                <header className={`flex items-center justify-between gap-4 px-6 py-4 border-b border-[rgba(102,126,234,0.12)] ${effectiveTheme === 'light' ? 'bg-white border-gray-200' : 'bg-[#1a1a2e]'}`}>
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors lg:hidden">
+                            <Menu className="w-5 h-5" />
+                        </button>
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center">
+                            <Bot className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h1 className={`text-base font-semibold ${effectiveTheme === 'light' ? 'text-gray-800' : 'text-white'}`}>AI Chat</h1>
+                            <p className={`text-[11px] ${effectiveTheme === 'light' ? 'text-gray-500' : 'text-[#666]'}`}>Ready to assist</p>
+                        </div>
+                    </div>
+                    
+                    {/* Navigation */}
+                    <div className="flex items-center gap-1.5">
+                        {/* Theme Selector */}
+                        <div className="relative" ref={themeDropdownRef}>
+                            <button
+                                onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors"
+                            >
+                                {effectiveTheme === 'dark' ? <Moon className="w-3.5 h-3.5" /> : effectiveTheme === 'light' ? <Sun className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+                                <span className="hidden sm:inline capitalize">{effectiveTheme || 'System'}</span>
+                            </button>
+                            {themeDropdownOpen && (
+                                <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] shadow-xl py-1 z-50">
+                                    <button
+                                        onClick={() => handleThemeChange('light')}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors ${effectiveTheme === 'light' ? 'text-[#667eea]' : 'text-[#b0b0b0]'}`}
+                                    >
+                                        <Sun className="w-3.5 h-3.5" /> Light
+                                    </button>
+                                    <button
+                                        onClick={() => handleThemeChange('dark')}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors ${effectiveTheme === 'dark' ? 'text-[#667eea]' : 'text-[#b0b0b0]'}`}
+                                    >
+                                        <Moon className="w-3.5 h-3.5" /> Dark
+                                    </button>
+                                    <button
+                                        onClick={() => handleThemeChange('system')}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors ${effectiveTheme === 'system' || !effectiveTheme ? 'text-[#667eea]' : 'text-[#b0b0b0]'}`}
+                                    >
+                                        <Monitor className="w-3.5 h-3.5" /> System
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <a href="/profile" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors">
+                            <Settings className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Settings</span>
+                        </a>
+                        <a href="/ai-agents" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors">
+                            <Bot className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Agents</span>
+                        </a>
+                        {user?.is_admin && (
+                            <a href="/admin" className="px-3 py-1.5 rounded-lg text-xs bg-[rgba(231,76,60,0.2)] text-[#e74c3c] hover:bg-[rgba(231,76,60,0.3)] transition-colors">Admin</a>
+                        )}
+                        <form action="/logout" method="POST" onSubmit={handleLogout} className="inline">
+                            <button type="submit" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#e74c3c] hover:bg-[rgba(231,76,60,0.15)] transition-colors">
+                                <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Logout</span>
+                            </button>
+                        </form>
+                    </div>
+                </header>
+
+                {/* Chat Content */}
+                <div className="flex-1 overflow-hidden flex flex-col">
+                    {children}
+                </div>
+            </main>
+        </div>
+    );
+}
+
+// Agent Selector Component
+export function AgentSelector({
+    agents,
+    selectedAgent,
+    onSelectAgent,
+    isOpen,
+    onToggle,
+    theme
+}: {
+    agents: Agent[];
+    selectedAgent: Agent;
+    onSelectAgent: (agent: Agent) => void;
+    isOpen: boolean;
+    onToggle: () => void;
+    theme?: 'light' | 'dark' | 'system';
+}) {
+    const effectiveTheme = theme ?? 'system';
+    return (
+        <div className="relative flex-shrink-0" ref={undefined}>
+            <button
+                onClick={onToggle}
+                className={`
+                    flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2
+                    text-sm cursor-pointer
+                    transition-all duration-200
+                    hover:border-[#667eea]
+                    ${isOpen ? 'border-[#667eea] shadow-lg shadow-[rgba(102,126,234,0.2)]' : ''}
+                    ${effectiveTheme === 'light'
+                        ? 'bg-white border-gray-200 hover:border-[#667eea]'
+                        : 'bg-[#1e1e32] border-[#2d2d4a] hover:border-[#667eea]'}
+                `}
+                style={{ width: '180px', height: '44px', boxSizing: 'border-box' }}
+            >
+                <div className={`w-7 h-7 rounded-lg bg-gradient-to-r ${getProviderIcon(selectedAgent.provider).gradient} flex items-center justify-center flex-shrink-0 text-sm`}>
+                    {getProviderIcon(selectedAgent.provider).icon}
+                </div>
+                <span className={`flex-1 truncate text-left font-medium text-xs ${effectiveTheme === 'light' ? 'text-gray-800' : 'text-white'}`} title={selectedAgent.name}>
+                    {selectedAgent.name}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} ${effectiveTheme === 'light' ? 'text-gray-500' : 'text-[#777]'}`} />
+            </button>
+
+            {/* Dropdown */}
+            <div className={`
+                absolute bottom-full left-0 mb-2 w-full
+                bg-[#1a1a2e] border border-[#2d2d4a] rounded-xl
+                overflow-hidden z-50 shadow-xl
+                transition-all duration-200 origin-bottom
+                ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2 pointer-events-none'}
+            `}>
+                <div className="p-1.5">
+                    {agents.map((agent) => (
+                        <button
+                            key={agent.id}
+                            onClick={() => onSelectAgent(agent)}
+                            className={`
+                                flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg
+                                text-xs transition-all duration-150
+                                ${selectedAgent.id === agent.id ? (effectiveTheme === 'light' ? 'bg-blue-100 text-gray-800' : 'bg-[rgba(102,126,234,0.2)] text-white') : (effectiveTheme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-[#999] hover:bg-[rgba(102,126,234,0.1)] hover:text-white')}
+                            `}
+                        >
+                            <div className={`w-6 h-6 rounded-md bg-gradient-to-r ${getProviderIcon(agent.provider).gradient} flex items-center justify-center flex-shrink-0 text-[10px]`}>
+                                {getProviderIcon(agent.provider).icon}
+                            </div>
+                            <span className="flex-1 truncate text-left">{agent.name}</span>
+                            {selectedAgent.id === agent.id && <Check className="w-3.5 h-3.5 text-[#667eea] flex-shrink-0" />}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Chat Input Component
+export function ChatInput({
+    value,
+    onChange,
+    onSubmit,
+    placeholder = "Type your message here...",
+    disabled = false,
+    theme
+}: {
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+    placeholder?: string;
+    disabled?: boolean;
+    theme?: 'light' | 'dark' | 'system';
+}) {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (!disabled && value.trim()) onSubmit();
+        }
+    };
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+        }
+    }, [value]);
+
+    return (
+        <div className="flex gap-2.5 items-end flex-1">
+            <textarea
+                ref={textareaRef}
+                id="chatMessage"
+                name="message"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder}
+                disabled={disabled}
+                rows={1}
+                className={`
+                    flex-1 px-4 py-2.5 min-h-[44px] max-h-[120px] rounded-xl border-2 resize-none font-inherit leading-relaxed transition-all duration-200 focus:outline-none focus:border-[#667eea]
+                    ${theme === 'light' ? 'bg-white border-gray-200 text-gray-800 placeholder:text-gray-400' : 'bg-[#1e1e32] border-[#2d2d4a] text-[#e0e0e0] placeholder:text-[#555]'}
+                `}
+                style={{ boxSizing: 'border-box', height: '44px' }}
+            />
+            <button
+                type="button"
+                disabled={disabled || !value.trim()}
+                onClick={onSubmit}
+                className="
+                    w-[44px] h-[44px] rounded-xl
+                    bg-gradient-to-r from-[#667eea] to-[#764ba2]
+                    border-none cursor-pointer ${effectiveTheme === 'light' ? 'text-white' : 'text-white'}
+                    flex items-center justify-center
+                    shadow-lg shadow-[rgba(102,126,234,0.3)]
+                    hover:shadow-xl hover:scale-105 active:scale-95
+                    transition-all duration-200
+                    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100
+                    flex-shrink-0
+                "
+            >
+                <Send className="w-4 h-4" />
+            </button>
+        </div>
+    );
+}
+
+// Message Bubble Component
+export function MessageBubble({ message }: { message: Message }) {
+    const isUser = message.role === 'user';
+    
+    const formattedContent = useMemo(() => {
+        return formatMessage(message.message);
+    }, [message.message]);
+    
+    return (
+        <div className={`flex flex-col max-w-[80%] ${isUser ? 'items-end self-end' : 'items-start self-start'}`}>
+            <div className={`
+                px-5 py-3 rounded-2xl text-sm leading-relaxed
+                ${isUser ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md shadow-lg shadow-[rgba(102,126,234,0.2)]' : (effectiveTheme === 'light' ? 'bg-white text-gray-800 border border-gray-200 rounded-bl-md' : 'bg-[#1a1a2e] text-[#d0d0d0] border border-[#2d2d4a] rounded-bl-md')}
+            `}>
+                {formattedContent}
+            </div>
+            <span className="text-[10px] text-[#444] mt-1.5 px-1">
+                {message.created_at ? new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}
+            </span>
+        </div>
+    );
+}
+
+// Typing Indicator
+export function TypingIndicator() {
+    return (
+        <div className="flex items-start self-start max-w-[75%]">
+            <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-[#1a1a2e] border border-[#2d2d4a]">
+                <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+            </div>
+        </div>
+    );
+}
