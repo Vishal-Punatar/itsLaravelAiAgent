@@ -266,51 +266,40 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     // Check if user has any agents configured
     const hasAgents = agents.length > 0;
 
-    // Unified chat + input area - merged into one section with frosted bubble look
+    // One single unified section: chat + agent selector + chat input
     const combinedArea = (
-        <>
-            {/* Chat messages area */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {chatContent}
-
-            {/* Input area - visually merged with chat, only subtle top border for separation */}
-            <div className="flex-shrink-0 border-t border-white/15 px-3 sm:px-4 pb-3 sm:pb-4">
-                <div className="max-w-[900px] mx-auto">
-                    <div className="pt-3">
-                        {hasAgents ? (
-                        <div className="flex flex-col sm:flex-row gap-2 items-end">
-                            <div ref={agentSelectorRef}>
-                            <AgentSelector
-                                agents={agents}
-                                selectedAgent={selectedAgent}
-                                onSelectAgent={handleAgentSelect}
-                                isOpen={agentDropdownOpen}
-                                onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
-                                theme={theme}
-                            />
-                            </div>
-                            <ChatInput
-                                value={message}
-                                onChange={setMessage}
-                                onSubmit={handleSubmit}
-                                disabled={isSubmitting || !selectedAgent}
-                                theme={theme}
-                                attachments={attachments}
-                                onAttach={handleAttach}
-                                onRemoveAttachment={handleRemoveAttachment}
-                            />
-                        </div>
-                    ) : (
-                        <div className={`flex items-center justify-center py-3 px-4 rounded-xl ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
-                            <div className="text-center">
-                                <p className="text-sm">⚠️ No AI Provider Configured</p>
-                                <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
-                            </div>
-                        </div>
-                    )}
+            {hasAgents ? (
+                <div ref={agentSelectorRef} className="flex-shrink-0 px-3 sm:px-4 pb-3 sm:pb-4">
+                    <AgentSelector
+                        agents={agents}
+                        selectedAgent={selectedAgent}
+                        onSelectAgent={handleAgentSelect}
+                        isOpen={agentDropdownOpen}
+                        onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
+                        theme={theme}
+                    />
+                    <ChatInput
+                        value={message}
+                        onChange={setMessage}
+                        onSubmit={handleSubmit}
+                        disabled={isSubmitting || !selectedAgent}
+                        theme={theme}
+                        attachments={attachments}
+                        onAttach={handleAttach}
+                        onRemoveAttachment={handleRemoveAttachment}
+                    />
+                </div>
+            ) : (
+                <div className={`flex items-center justify-center py-3 px-4 rounded-xl mx-3 sm:mx-4 mb-3 sm:mb-4 ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
+                    <div className="text-center">
+                        <p className="text-sm">⚠️ No AI Provider Configured</p>
+                        <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
                     </div>
                 </div>
-            </div>
-        </>
+            )}
+        </div>
     );
 
     return (
