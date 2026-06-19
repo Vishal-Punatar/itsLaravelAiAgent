@@ -193,7 +193,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     };
 
     const chatContent = (
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 flex flex-col gap-3">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 flex flex-col gap-3 theme-bg-app">
             {localMessages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center">
                     {/* Welcome Icon */}
@@ -266,56 +266,56 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     // Check if user has any agents configured
     const hasAgents = agents.length > 0;
 
-    const inputArea = (
-            <div className="max-w-[900px] mx-auto px-3 sm:px-4">
-                <div className="bg-[var(--theme-bg-app)] border border-white/20 rounded-3xl shadow-2xl px-4 py-3">
-                    {/* Agent + Input in one row */}
-                    {hasAgents ? (
-                    <div className="flex flex-col sm:flex-row gap-2 items-end">
-                        <div ref={agentSelectorRef}>
-                        <AgentSelector
-                            agents={agents}
-                            selectedAgent={selectedAgent}
-                            onSelectAgent={handleAgentSelect}
-                            isOpen={agentDropdownOpen}
-                            onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
-                            theme={theme}
-                        />
+    // Unified chat + input area - merged into one section with frosted bubble look
+    const combinedArea = (
+        <>
+            {/* Chat messages area */}
+            {chatContent}
+
+            {/* Input area - visually merged with chat, only subtle top border for separation */}
+            <div className="flex-shrink-0 border-t border-white/15 px-3 sm:px-4 pb-3 sm:pb-4">
+                <div className="max-w-[900px] mx-auto">
+                    <div className="pt-3">
+                        {hasAgents ? (
+                        <div className="flex flex-col sm:flex-row gap-2 items-end">
+                            <div ref={agentSelectorRef}>
+                            <AgentSelector
+                                agents={agents}
+                                selectedAgent={selectedAgent}
+                                onSelectAgent={handleAgentSelect}
+                                isOpen={agentDropdownOpen}
+                                onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
+                                theme={theme}
+                            />
+                            </div>
+                            <ChatInput
+                                value={message}
+                                onChange={setMessage}
+                                onSubmit={handleSubmit}
+                                disabled={isSubmitting || !selectedAgent}
+                                theme={theme}
+                                attachments={attachments}
+                                onAttach={handleAttach}
+                                onRemoveAttachment={handleRemoveAttachment}
+                            />
                         </div>
-                        <ChatInput
-                            value={message}
-                            onChange={setMessage}
-                            onSubmit={handleSubmit}
-                            disabled={isSubmitting || !selectedAgent}
-                            theme={theme}
-                            attachments={attachments}
-                            onAttach={handleAttach}
-                            onRemoveAttachment={handleRemoveAttachment}
-                        />
-                    </div>
-                ) : (
-                    <div className={`flex items-center justify-center py-3 px-4 rounded-xl ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
-                        <div className="text-center">
-                            <p className="text-sm">⚠️ No AI Provider Configured</p>
-                            <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
+                    ) : (
+                        <div className={`flex items-center justify-center py-3 px-4 rounded-xl ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
+                            <div className="text-center">
+                                <p className="text-sm">⚠️ No AI Provider Configured</p>
+                                <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
+                            </div>
                         </div>
+                    )}
                     </div>
-                )}
-                
                 </div>
-                {/* Helper text */}
-                {hasAgents && (
-                    <p className="text-[10px] text-[#444] mt-2 text-center">
-                        Press Enter to send • Shift + Enter for new line
-                    </p>
-                )}
             </div>
+        </>
     );
 
     return (
         <ChatLayout agents={agents} chats={chats} currentChat={chat} user={user}>
-            {chatContent}
-            {inputArea}
+            {combinedArea}
             {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
         </ChatLayout>
     );
