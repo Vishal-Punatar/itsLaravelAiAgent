@@ -136,6 +136,7 @@
 }
 
 .light body,
+body.light,
 .light #app {
     background-color: #f1f5f9;
     color: #1a1a2e;
@@ -257,6 +258,7 @@
 
 /* Base backgrounds */
 .light body,
+body.light,
 .light #app,
 .light [data-theme="light"] {
     background-color: var(--light-bg-primary) !important;
@@ -586,6 +588,7 @@
 
 /* Body and main container */
 .light body,
+body.light,
 .light #app,
 .light .bg-\[\#0f0f1a\] {
     background-color: var(--light-bg) !important;

@@ -60,19 +60,6 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
     const [saving, setSaving] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
 
-    const applyTheme = (newTheme: 'light' | 'dark' | 'system') => {
-        const root = document.documentElement;
-        if (newTheme === 'system') {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            root.classList.toggle('light', !prefersDark);
-            root.classList.toggle('dark', prefersDark);
-        } else {
-            root.classList.toggle('light', newTheme === 'light');
-            root.classList.toggle('dark', newTheme === 'dark');
-        }
-        root.setAttribute('data-theme', newTheme);
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -168,9 +155,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
         }
     };
 
-    useEffect(() => {
-        applyTheme(theme);
-    }, []);
+    // Theme is applied by ChatLayout — do not apply here
 
     const selectedProvider = providers.find(p => p.value === provider) || providers[0];
 

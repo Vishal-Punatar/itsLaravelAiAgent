@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
-use App\Http\Controllers\ProductTourController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,14 +19,10 @@ use Illuminate\Support\Facades\Route;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-// Protected routes
-Route::get('/tour', [ProductTourController::class, 'start']);
-Route::post('/tour/complete', [ProductTourController::class, 'complete']);
-
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
-    
+
     // Chat API
     Route::get('/chats', [ChatController::class, 'index']);
     Route::get('/chats/{id}', [ChatController::class, 'show']);

@@ -261,15 +261,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
         </div>
     );
 
-    // Listen for theme changes
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            const newTheme = document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system';
-            if (newTheme) setTheme(newTheme);
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-        return () => observer.disconnect();
-    }, []);
+    // Theme is applied synchronously by ChatLayout — no MutationObserver needed
 
     // Check if user has any agents configured
     const hasAgents = agents.length > 0;

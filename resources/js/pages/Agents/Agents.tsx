@@ -37,14 +37,6 @@ export default function AgentsPage({ agents, chats, user }: AgentsPageProps) {
     const [deleteMessage, setDeleteMessage] = useState<{text: string; type: 'success'|'error'}|null>(null);
     const [agentList, setAgentList] = useState(agents);
 
-    const applyTheme = (t: 'light' | 'dark' | 'system') => {
-        const root = document.documentElement;
-        const dark = t === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : t === 'dark';
-        root.classList.toggle('light', !dark);
-        root.classList.toggle('dark', dark);
-        root.setAttribute('data-theme', t);
-    };
-
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const handleSetDefault = async (agentId: number) => {
@@ -77,7 +69,7 @@ export default function AgentsPage({ agents, chats, user }: AgentsPageProps) {
         }
     };
 
-    useEffect(() => { applyTheme(theme); }, []);
+    // Theme is applied by ChatLayout — do not apply here
 
     // Auto-dismiss delete message after 3 seconds
     useEffect(() => {

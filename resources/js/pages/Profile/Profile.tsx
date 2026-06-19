@@ -53,80 +53,52 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-    const applyTheme = (t: 'light' | 'dark' | 'system') => {
-        const root = document.documentElement;
-        const dark = t === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : t === 'dark';
-        root.classList.toggle('light', !dark);
-        root.classList.toggle('dark', dark);
-        root.setAttribute('data-theme', t);
-        root.classList.add('transitioning');
-        setTimeout(() => root.classList.remove('transitioning'), 300);
-    };
-
-    const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
+    const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+        // Update state — ChatLayout's useLayoutEffect applies the theme to DOM
+        setTheme(newTheme);
         try { localStorage.setItem('app_theme', newTheme); } catch (e) {}
-        try {
-            const response = await fetch('/profile/theme', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-                body: JSON.stringify({ theme: newTheme }),
-            });
-            if (response.ok) { setTheme(newTheme); applyTheme(newTheme); }
-        } catch (error) { console.error('Failed to change theme:', error); }
+
+        // Fire-and-forget save to server
+        fetch('/profile/theme', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
+            body: JSON.stringify({ theme: newTheme }),
+        }).catch(() => {});
     };
 
-    useEffect(() => { applyTheme(theme); }, []);
+    // Theme is applied by ChatLayout — do not apply here
 
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSaving(true); setSuccessMessage(''); setErrorMessage('');
+        setSaving(true);
+        setSuccessMessage('');
+        setErrorMessage('');
+
         try {
             const response = await fetch('/profile', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
                 body: JSON.stringify({ name, email }),
             });
+            const data = await response.json();
             if (response.ok) {
-                setSuccessMessage('Profile updated successfully!');
-                setTimeout(() => setSuccessMessage(''), 3000);
+                setSuccessMessage(data.message || 'Profile updated successfully!');
             } else {
-                const data = await response.json();
-                setErrorMessage(data.message || 'Failed to update profile');
+                setErrorMessage(data.error || 'Failed to update profile.');
             }
-        } catch { setErrorMessage('An error occurred. Please try again.'); }
-        finally { setSaving(false); }
+        } catch (error) {
+            setErrorMessage('An error occurred. Please try again.');
+        } finally {
+            setSaving(false);
+        }
     };
 
-    const handleChangePassword = async (e: React.FormEvent) => {
+    const handleLogout = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (newPassword !== confirmPassword) { setErrorMessage('Passwords do not match'); return; }
-        setChangingPassword(true); setSuccessMessage(''); setErrorMessage('');
         try {
-            const response = await fetch('/profile/password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-                body: JSON.stringify({
-                    current_password: currentPassword,
-                    password: newPassword,
-                    password_confirmation: confirmPassword,
-                }),
-            });
-            if (response.ok) {
-                setSuccessMessage('Password changed successfully!');
-                setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
-                setTimeout(() => setSuccessMessage(''), 3000);
-            } else {
-                const data = await response.json();
-                setErrorMessage(data.message || 'Failed to change password');
-            }
-        } catch { setErrorMessage('An error occurred. Please try again.'); }
-        finally { setChangingPassword(false); }
-    };
-
-    const handleLogout = (e: React.FormEvent<HTMLFormElement>) => {
-        const input = document.createElement('input');
-        input.type = 'hidden'; input.name = '_token'; input.value = csrf();
-        e.currentTarget.appendChild(input);
+            const response = await fetch('/logout', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } });
+            if (response.ok) window.location.href = '/login';
+        } catch (error) { window.location.href = '/login'; }
     };
 
     const themeOptions: { value: 'light' | 'dark' | 'system'; label: string; Icon: typeof Sun }[] = [
@@ -196,61 +168,96 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
                             </div>
                         </div>
 
-                        {/* Profile Form */}
-                        <div className={sectionCls}>
+                        {/* Update Profile */}
+                        <form onSubmit={handleSaveProfile} className={sectionCls}>
                             <h2 className="text-sm font-semibold mb-2 theme-text-primary">Update Profile</h2>
-                            <form onSubmit={handleSaveProfile} className="space-y-2">
+                            <div className="space-y-3">
                                 <div>
-                                    <label className={labelCls}>Name <span className="text-red-500">*</span></label>
-                                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} />
+                                    <label className={labelCls}>Name</label>
+                                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
                                 </div>
                                 <div>
-                                    <label className={labelCls}>Email <span className="text-red-500">*</span></label>
-                                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={inputCls} />
+                                    <label className={labelCls}>Email</label>
+                                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
                                 </div>
                                 <button type="submit" disabled={saving} className={btnCls}>
                                     {saving ? 'Saving...' : 'Save Changes'}
                                 </button>
-                            </form>
-                        </div>
+                            </div>
+                        </form>
 
-                        {/* Password */}
+                        {/* Change Password */}
                         <div className={sectionCls}>
                             <h2 className="text-sm font-semibold mb-2 theme-text-primary">Change Password</h2>
-                            <form onSubmit={handleChangePassword} className="space-y-2">
+                            <div className="space-y-3">
                                 <div>
-                                    <label className={labelCls}>Current Password <span className="text-red-500">*</span></label>
+                                    <label className={labelCls}>Current Password</label>
                                     <div className="relative">
-                                        <input type={showCurrentPassword ? 'text' : 'password'} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required className={inputCls} />
-                                        <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#b0b0b0] cursor-pointer">
+                                        <input
+                                            type={showCurrentPassword ? 'text' : 'password'}
+                                            value={currentPassword}
+                                            onChange={(e) => setCurrentPassword(e.target.value)}
+                                            className={inputCls + ' pr-10'}
+                                        />
+                                        <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 theme-text-secondary">
                                             {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                         </button>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <div>
-                                        <label className={labelCls}>New Password <span className="text-red-500">*</span></label>
-                                        <div className="relative">
-                                            <input type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} className={inputCls} />
-                                            <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#b0b0b0] cursor-pointer">
-                                                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className={labelCls}>Confirm <span className="text-red-500">*</span></label>
-                                        <div className="relative">
-                                            <input type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} className={inputCls} />
-                                            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#b0b0b0] cursor-pointer">
-                                                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
+                                <div>
+                                    <label className={labelCls}>New Password</label>
+                                    <div className="relative">
+                                        <input
+                                            type={showNewPassword ? 'text' : 'password'}
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            className={inputCls + ' pr-10'}
+                                        />
+                                        <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 theme-text-secondary">
+                                            {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
                                     </div>
                                 </div>
-                                <button type="submit" disabled={changingPassword} className={btnCls}>
+                                <div>
+                                    <label className={labelCls}>Confirm New Password</label>
+                                    <div className="relative">
+                                        <input
+                                            type={showConfirmPassword ? 'text' : 'password'}
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            className={inputCls + ' pr-10'}
+                                        />
+                                        <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 theme-text-secondary">
+                                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                                    onClick={async () => {
+                                        if (newPassword !== confirmPassword) { setErrorMessage('Passwords do not match.'); return; }
+                                        setChangingPassword(true);
+                                        setErrorMessage('');
+                                        try {
+                                            const res = await fetch('/profile/password', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
+                                                body: JSON.stringify({ current_password: currentPassword, password: newPassword, password_confirmation: confirmPassword }),
+                                            });
+                                            const d = await res.json();
+                                            if (res.ok) {
+                                                setSuccessMessage('Password changed successfully!');
+                                                setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+                                            } else { setErrorMessage(d.error || 'Failed to change password.'); }
+                                        } catch { setErrorMessage('An error occurred.'); }
+                                        finally { setChangingPassword(false); }
+                                    }}
+                                    className={btnCls}
+                                >
                                     {changingPassword ? 'Changing...' : 'Change Password'}
                                 </button>
-                            </form>
+                            </div>
                         </div>
                     </div>
                 </div>

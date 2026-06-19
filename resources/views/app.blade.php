@@ -22,12 +22,15 @@
                     }
                     // Always reset both classes first to avoid stale state
                     root.classList.remove('light', 'dark');
+                    document.body.classList.remove('light', 'dark');
                     if (resolved === 'light') {
                         root.classList.add('light');
+                        document.body.classList.add('light');
                     } else if (resolved === 'dark') {
                         root.classList.add('dark');
+                        document.body.classList.add('dark');
                     }
-                    root.setAttribute('data-theme', theme);
+                    root.setAttribute('data-theme', resolved);
                 } catch (e) {
                     // localStorage might not be available
                 }

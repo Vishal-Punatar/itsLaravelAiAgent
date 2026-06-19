@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AiAgent;
-use App\Models\AiSetting;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\User;
@@ -32,18 +31,7 @@ class AdminController extends Controller
         $users = User::with('aiAgents')
             ->withCount('chats', 'messages')
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($user) {
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'is_admin' => $user->is_admin,
-                    'chats_count' => $user->chats_count,
-                    'messages_count' => $user->messages_count,
-                    'created_at' => $user->created_at->toISOString(),
-                ];
-            });
+            ->get();
 
         return Inertia::render('Admin/Users', [
             'users' => $users,
@@ -53,14 +41,8 @@ class AdminController extends Controller
     public function editUser($id)
     {
         $user = User::findOrFail($id);
-
         return Inertia::render('Admin/UserEdit', [
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'is_admin' => $user->is_admin,
-            ],
+            'user' => $user,
         ]);
     }
 
@@ -72,32 +54,11 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $id,
             'is_admin' => 'boolean',
-            // Password is optional. If blank/unset, we keep the existing one.
-            // If provided, must be 8+ chars and match the confirmation field.
-            'password' => 'nullable|string|min:8|confirmed',
         ]);
-
-        // Strip password from the validated array if it was left blank,
-        // so we never overwrite the existing hash with an empty string.
-        $password = $validated['password'] ?? null;
-        unset($validated['password']);
-        if (isset($validated['password_confirmation'])) {
-            unset($validated['password_confirmation']);
-        }
 
         $user->update($validated);
 
-        if (!empty($password)) {
-            // The User model has 'password' => 'hashed' cast, so passing
-            // the plaintext here will be auto-hashed by Eloquent.
-            $user->update(['password' => $password]);
-        }
-
-        $message = !empty($password)
-            ? 'User and password updated successfully!'
-            : 'User updated successfully!';
-
-        return redirect('/admin/users')->with('success', $message);
+        return redirect('/admin/users')->with('success', 'User updated successfully!');
     }
 
     public function destroyUser($id)
@@ -110,7 +71,6 @@ class AdminController extends Controller
 
         $user->chats()->delete();
         $user->aiAgents()->delete();
-        $user->aiSetting?->delete();
         $user->delete();
 
         return redirect('/admin/users')->with('success', 'User deleted successfully!');
@@ -118,7 +78,7 @@ class AdminController extends Controller
 
     public function models()
     {
-        $models = AiSetting::allowedModels();
+        $models = AiAgent::allowedModels();
 
         $cleanModels = [];
         foreach ($models as $key => $provider) {
@@ -137,7 +97,7 @@ class AdminController extends Controller
     {
         $agents = AiAgent::with('user')
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->get();
 
         return Inertia::render('Admin/Settings', [
             'agents' => $agents,

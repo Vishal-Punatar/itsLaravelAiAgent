@@ -358,38 +358,33 @@ export default function ChatLayout({
             ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : theme;
 
-        // Helper to do the actual theme change
-        const doChange = () => {
-            root.classList.toggle('light', effectiveTheme === 'light');
-            root.classList.toggle('dark', effectiveTheme === 'dark');
-            root.setAttribute('data-theme', theme);
-        };
+        // Check if theme actually changed
+        const currentDataTheme = root.getAttribute('data-theme');
+        const currentEffective = currentDataTheme === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : currentDataTheme;
 
-        // Use View Transitions API if available (modern Chrome/Edge) for atomic transition
-        // @ts-ignore - View Transitions API is newer
-        if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            // @ts-ignore
-            document.startViewTransition(() => {
-                doChange();
+        if (currentEffective === effectiveTheme) return;
+
+        // Step 1: Add .transitioning class to <html> — this activates CSS transitions
+        root.classList.add('transitioning');
+
+        // Step 2: Wait 2 frames (requestAnimationFrame x2) so browser paints the
+        //         transition state BEFORE we change the actual theme values.
+        //         This makes ALL components transition as ONE unified surface.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                root.classList.toggle('light', effectiveTheme === 'light');
+                root.classList.toggle('dark', effectiveTheme === 'dark');
+                root.setAttribute('data-theme', effectiveTheme);
+                // Apply to <body> too so footer and fixed/sticky elements get the class
+                document.body.classList.toggle('light', effectiveTheme === 'light');
+                document.body.classList.toggle('dark', effectiveTheme === 'dark');
+
+                // Step 3: After transition completes, remove .transitioning class
+                setTimeout(() => root.classList.remove('transitioning'), 300);
             });
-        } else {
-            // Fallback: Use a brief cross-fade to mask the color change
-            // This creates the illusion of a single smooth transition
-            const body = document.body;
-            const currentOpacity = parseFloat(getComputedStyle(body).opacity || '1');
-            
-            // Quick fade out + change + fade in
-            body.style.transition = 'opacity 0.15s ease';
-            body.style.opacity = '0.3';
-            
-            setTimeout(() => {
-                doChange();
-                // Allow browser to paint the new colors
-                requestAnimationFrame(() => {
-                    body.style.opacity = '1';
-                });
-            }, 150);
-        }
+        });
     };
 
     // Listen for system theme changes when theme is 'system'

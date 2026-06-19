@@ -1,38 +1,8 @@
-/* Theme System - CSS Custom Properties */
+/* Theme System - Single [data-theme] Attribute Approach
+   Dark is default (:root), light overrides via [data-theme="light"]
+*/
 :root {
-  /* Light Theme (default) */
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f0f0f2;
-  --bg-input: #ffffff;
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-muted: #86868b;
-  --border-primary: #d2d2d7;
-  --border-secondary: #e5e5ea;
-  --accent-primary: #667eea;
-  --accent-secondary: #764ba2;
-  --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --shadow-color: rgba(0, 0, 0, 0.1);
-  --hover-overlay: rgba(0, 0, 0, 0.05);
-  --message-user-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --message-assistant-bg: #ffffff;
-  --message-assistant-border: #d2d2d7;
-  --scrollbar-thumb: #c4c4c4;
-  --scrollbar-track: transparent;
-  --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #e5e5ea;
-  --chat-item-hover: rgba(102, 126, 234, 0.08);
-  --chat-item-active: rgba(102, 126, 234, 0.12);
-  --error-bg: rgba(231, 76, 60, 0.1);
-  --error-color: #e74c3c;
-  --error-border: rgba(231, 76, 60, 0.3);
-  --typing-dot: #667eea;
-}
-
-[data-theme="dark"] {
-  /* Dark Theme */
+  /* Dark theme (default) */
   --bg-primary: #0f0f1a;
   --bg-secondary: #1a1a2e;
   --bg-tertiary: #1e1e32;
@@ -40,7 +10,7 @@
   --text-primary: #e0e0e0;
   --text-secondary: #a0a0a0;
   --text-muted: #666666;
-  --border-primary: #2d2d4a;
+  --border-color: #2d2d4a;
   --border-secondary: #3a3a5a;
   --accent-primary: #667eea;
   --accent-secondary: #764ba2;
@@ -61,9 +31,95 @@
   --error-color: #e74c3c;
   --error-border: rgba(231, 76, 60, 0.3);
   --typing-dot: #667eea;
+  --bg-app: #0f0f1a;
+  --bg-card: #1a1a2e;
+  --bg-hover: rgba(102, 126, 234, 0.08);
+  --bg-hover-strong: rgba(102, 126, 234, 0.15);
+  --text-faint: #666666;
+  --text-dim: #555555;
+  --text-dimmer: #444444;
+  --text-dimmest: #333333;
+  --border-light: rgba(102, 126, 234, 0.1);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --card-bg: #1a1a2e;
+  --card-border: #2d2d4a;
+  --input-bg: #1e1e32;
+  --input-border: #2d2d4a;
+  --primary: #667eea;
+  --primary-foreground: #ffffff;
+  --destructive: #e74c3c;
+  --destructive-foreground: #ffffff;
+  --ring: #667eea;
+  --muted: #1e1e32;
+  --muted-foreground: #888888;
+  --secondary: #1e1e32;
+  --secondary-foreground: #a0a0a0;
 }
 
-/* Theme toggle button styling */
+[data-theme="light"] {
+  /* Light theme overrides */
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f0f0f2;
+  --bg-input: #ffffff;
+  --text-primary: #1d1d1f;
+  --text-secondary: #495057;
+  --text-muted: #6e6e73;
+  --border-color: #d2d2d7;
+  --border-secondary: #e5e5ea;
+  --accent-primary: #667eea;
+  --accent-secondary: #764ba2;
+  --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --hover-overlay: rgba(0, 0, 0, 0.05);
+  --message-user-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --message-assistant-bg: #ffffff;
+  --message-assistant-border: #d2d2d7;
+  --scrollbar-thumb: #c4c4c4;
+  --scrollbar-track: transparent;
+  --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e5e5ea;
+  --chat-item-hover: rgba(102, 126, 234, 0.08);
+  --chat-item-active: rgba(102, 126, 234, 0.12);
+  --error-bg: rgba(231, 76, 60, 0.1);
+  --error-color: #e74c3c;
+  --error-border: rgba(231, 76, 60, 0.3);
+  --typing-dot: #667eea;
+  --bg-app: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-hover: rgba(102, 126, 234, 0.06);
+  --bg-hover-strong: rgba(102, 126, 234, 0.12);
+  --text-faint: #9ca3af;
+  --text-dim: #6b7280;
+  --text-dimmer: #d1d5db;
+  --text-dimmest: #e5e7eb;
+  --border-light: rgba(102, 126, 234, 0.1);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --primary: #667eea;
+  --primary-foreground: #ffffff;
+  --destructive: #e74c3c;
+  --destructive-foreground: #ffffff;
+  --ring: #667eea;
+  --muted: #f1f5f9;
+  --muted-foreground: #6b7280;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #495057;
+}
+
+/* Smooth theme transitions — active during theme switch */
+html.theme-changing,
+html.theme-changing * {
+  transition: background-color 0.25s ease, color 0.25s ease,
+              border-color 0.25s ease, fill 0.25s ease,
+              stroke 0.25s ease, box-shadow 0.25s ease !important;
+}
+
+/* Theme toggle button */
 .theme-toggle {
   background: rgba(255, 255, 255, 0.15);
   color: white;
@@ -78,12 +134,5 @@
   align-items: center;
   gap: 0.4rem;
 }
-
-.theme-toggle:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.theme-toggle svg {
-  width: 16px;
-  height: 16px;
-}
+.theme-toggle:hover { background: rgba(255, 255, 255, 0.25); }
+.theme-toggle svg { width: 16px; height: 16px; }
