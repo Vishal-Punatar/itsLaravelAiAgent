@@ -1064,6 +1064,7 @@ html.transitioning *::after {
 :root,
 :root.dark {
     --theme-bg-app: #0f0f1a;
+    --theme-bg-glass: rgba(255, 255, 255, 0.06);
     --theme-bg-sidebar: #1a1a2e;
     --theme-bg-header: #1a1a2e;
     --theme-bg-card: #1a1a2e;
@@ -1089,6 +1090,7 @@ html.transitioning *::after {
        slate-200 sits between slate-100 (too close to white) and slate-300
        (too dark) — gives a clean "canvas" look that makes cards/inputs pop. */
     --theme-bg-app: #e2e8f0;
+    --theme-bg-glass: rgba(255, 255, 255, 0.85);
     --theme-bg-sidebar: #f8f9fa;
     --theme-bg-header: #ffffff;
     --theme-bg-card: #ffffff;
@@ -1134,6 +1136,15 @@ body, html {
 .theme-bg-header { background-color: var(--theme-bg-header) !important; }
 .theme-bg-card { background-color: var(--theme-bg-card) !important; }
 .theme-bg-input { background-color: var(--theme-bg-input) !important; }
+
+/* Frosted glass: theme bg + subtle white overlay + blur
+   Works on both themes - blends with whatever the chat bg is behind it */
+.theme-bg-glass {
+    background-color: var(--theme-bg-glass, var(--theme-bg-app)) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
 .theme-text-primary { color: var(--theme-text-primary) !important; }
 .theme-text-secondary { color: var(--theme-text-secondary) !important; }
 .theme-text-muted { color: var(--theme-text-muted) !important; }
