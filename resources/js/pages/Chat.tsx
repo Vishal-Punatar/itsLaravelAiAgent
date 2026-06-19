@@ -267,8 +267,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     const hasAgents = agents.length > 0;
 
     const inputArea = (
-        <div className={`p-3 sm:p-4`}>
-            <div className="max-w-[900px] mx-auto">
+            <div className="max-w-[900px] mx-auto px-3 sm:px-4">
                 {/* Agent + Input in one row */}
                 {hasAgents ? (
                     <div className="flex flex-col sm:flex-row gap-2 items-end">
@@ -309,7 +308,6 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
                     </p>
                 )}
             </div>
-        </div>
     );
 
     return (
