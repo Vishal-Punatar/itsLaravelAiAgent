@@ -267,7 +267,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     const hasAgents = agents.length > 0;
 
     const inputArea = (
-        <div className={`p-2 sm:p-3 md:p-4 ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-[#12121f] border-[rgba(102,126,234,0.1)]'}`}>
+        <div className={`p-3 sm:p-4 theme-bg-app rounded-2xl border border-[rgba(102,126,234,0.1)]`}>
             <div className="max-w-[900px] mx-auto">
                 {/* Agent + Input in one row */}
                 {hasAgents ? (

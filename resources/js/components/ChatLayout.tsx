@@ -757,25 +757,23 @@ export function AgentSelector({
                     transition-all duration-200
                     hover:border-[#667eea]
                     ${isOpen ? 'border-[#667eea] shadow-lg shadow-[rgba(102,126,234,0.2)]' : ''}
-                    ${themeVal === 'light'
-                        ? 'bg-white border-gray-200 hover:border-[#667eea]'
-                        : 'bg-[#1e1e32] border-[#2d2d4a] hover:border-[#667eea]'}
+                    'bg-[var(--theme-bg-app)] border-[var(--theme-border)] hover:border-[#667eea]'
                 `}
                 style={{ width: '180px', height: '44px', boxSizing: 'border-box' }}
             >
                 <div className={`w-7 h-7 rounded-lg bg-gradient-to-r ${getProviderGradient(selectedAgent.provider)} flex items-center justify-center flex-shrink-0`}>
                     <ProviderIcon provider={selectedAgent.provider} size={16} color="#ffffff" />
                 </div>
-                <span className={`flex-1 truncate text-left font-medium text-xs ${themeVal === 'light' ? 'text-gray-800' : 'text-white'}`} title={selectedAgent.name}>
+                <span className={`flex-1 truncate text-left font-medium text-xs text-[var(--theme-text-primary)]`} title={selectedAgent.name}>
                     {selectedAgent.name}
                 </span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} ${themeVal === 'light' ? 'text-gray-500' : 'text-[#777]'}`} />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} text-[var(--theme-text-muted)]`} />
             </button>
 
             {/* Dropdown */}
             <div className={`
                 absolute bottom-full left-0 mb-2 w-full
-                bg-[#1a1a2e] border border-[#2d2d4a] rounded-xl
+                theme-bg-sidebar border border-[rgba(102,126,234,0.15)] rounded-xl
                 overflow-hidden z-50 shadow-xl
                 transition-all duration-200 origin-bottom
                 ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2 pointer-events-none'}
@@ -788,7 +786,9 @@ export function AgentSelector({
                             className={`
                                 flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg
                                 text-xs transition-all duration-150
-                                ${selectedAgent.id === agent.id ? (themeVal === 'light' ? 'bg-blue-100 text-gray-800' : 'bg-[rgba(102,126,234,0.2)] text-white') : (themeVal === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-[#999] hover:bg-[rgba(102,126,234,0.1)] hover:text-white')}
+                                ${selectedAgent.id === agent.id 
+    ? 'bg-[rgba(102,126,234,0.2)] text-[var(--theme-text-primary)]' 
+    : 'text-[var(--theme-text-muted)] hover:bg-[rgba(102,126,234,0.08)] hover:text-[var(--theme-text-primary)]'}
                             `}
                         >
                             <div className={`w-6 h-6 rounded-md bg-gradient-to-r ${getProviderGradient(agent.provider)} flex items-center justify-center flex-shrink-0`}>
@@ -866,12 +866,12 @@ export function ChatInput({
     return (
         <div className="flex flex-col gap-2 flex-1">
             {attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 p-2 rounded-lg bg-[#1e1e32] border border-[#2d2d4a]">
+                <div className="flex flex-wrap gap-2 p-2 rounded-xl theme-bg-app border border-[rgba(102,126,234,0.1)]">
                     {attachments.map((file, index) => {
                         const isImage = file.type && file.type.startsWith('image/');
                         const url = URL.createObjectURL(file);
                         return (
-                            <div key={index} className={`relative flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#2d2d4a] text-xs text-[#e0e0e0] ${isImage ? 'flex-col !px-1 !py-1' : ''}`}>
+                            <div key={index} className={`relative flex items-center gap-1.5 px-2 py-1 rounded-md theme-bg-sidebar text-xs text-[var(--theme-text-primary)] ${isImage ? 'flex-col !px-1 !py-1' : ''}`}>
                                 {isImage ? (
                                     <>
                                         <div className="relative cursor-pointer" onClick={() => setPreviewSrc(url)}>
@@ -915,9 +915,7 @@ export function ChatInput({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className={`w-[44px] h-[44px] rounded-xl border-2 flex items-center justify-center cursor-pointer transition-all duration-200 flex-shrink-0 ${
-                        theme === 'light' 
-                            ? 'bg-white border-gray-200 text-gray-500 hover:border-[#667eea] hover:text-[#667eea]' 
-                            : 'bg-[#1e1e32] border-[#2d2d4a] text-[#888] hover:border-[#667eea] hover:text-[#667eea]'
+                        'bg-[var(--theme-bg-app)] border-[var(--theme-border)] text-[var(--theme-text-muted)] hover:border-[#667eea] hover:text-[#667eea]'
                     } ${attachments.length > 0 ? 'border-[#667eea] text-[#667eea]' : ''}`}
                 >
                     <Paperclip className="w-4 h-4" />
@@ -934,7 +932,7 @@ export function ChatInput({
                     rows={1}
                     className={`
                         flex-1 px-4 py-2.5 min-h-[44px] max-h-[120px] rounded-xl border-2 resize-none font-inherit leading-relaxed transition-all duration-200 focus:outline-none focus:border-[#667eea]
-                        ${theme === 'light' ? 'bg-white border-gray-200 text-gray-800 placeholder:text-gray-400' : 'bg-[#1e1e32] border-[#2d2d4a] text-[#e0e0e0] placeholder:text-[#555]'}
+                        'bg-[var(--theme-bg-app)] border-[var(--theme-border)] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-faint)]'
                     `}
                     style={{ boxSizing: 'border-box', height: '44px' }}
                 />
@@ -942,7 +940,7 @@ export function ChatInput({
                     type="button"
                     disabled={disabled || (!value.trim() && attachments.length === 0)}
                     onClick={onSubmit}
-                    className="w-[44px] h-[44px] rounded-xl bg-gradient-to-r from-[#667eea] to-[#764ba2] border-none cursor-pointer text-white flex items-center justify-center shadow-lg shadow-[rgba(102,126,234,0.3)] hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0"
+                    className="w-[44px] h-[44px] rounded-2xl bg-gradient-to-r from-[#667eea] to-[#764ba2] border-none cursor-pointer text-white flex items-center justify-center shadow-lg shadow-[rgba(102,126,234,0.3)] hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0"
                 >
                     <Send className="w-4 h-4" />
                 </button>
