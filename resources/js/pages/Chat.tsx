@@ -268,8 +268,9 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
 
     const inputArea = (
             <div className="max-w-[900px] mx-auto px-3 sm:px-4">
-                {/* Agent + Input in one row */}
-                {hasAgents ? (
+                <div className="bg-white/80 backdrop-blur-md border border-white/50 rounded-3xl shadow-xl px-4 py-3">
+                    {/* Agent + Input in one row */}
+                    {hasAgents ? (
                     <div className="flex flex-col sm:flex-row gap-2 items-end">
                         <div ref={agentSelectorRef}>
                         <AgentSelector
@@ -301,6 +302,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
                     </div>
                 )}
                 
+                </div>
                 {/* Helper text */}
                 {hasAgents && (
                     <p className="text-[10px] text-[#444] mt-2 text-center">
