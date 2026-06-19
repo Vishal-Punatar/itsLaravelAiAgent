@@ -1064,7 +1064,7 @@ html.transitioning *::after {
 :root,
 :root.dark {
     --theme-bg-app: #0f0f1a;
-    --theme-bg-glass: rgba(255, 255, 255, 0.06);
+    --theme-bg-glass: rgba(255, 255, 255, 0.18);
     --theme-bg-sidebar: #1a1a2e;
     --theme-bg-header: #1a1a2e;
     --theme-bg-card: #1a1a2e;
@@ -1090,7 +1090,7 @@ html.transitioning *::after {
        slate-200 sits between slate-100 (too close to white) and slate-300
        (too dark) — gives a clean "canvas" look that makes cards/inputs pop. */
     --theme-bg-app: #e2e8f0;
-    --theme-bg-glass: rgba(255, 255, 255, 0.85);
+    --theme-bg-glass: rgba(255, 255, 255, 0.88);
     --theme-bg-sidebar: #f8f9fa;
     --theme-bg-header: #ffffff;
     --theme-bg-card: #ffffff;
