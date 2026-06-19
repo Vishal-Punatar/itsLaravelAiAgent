@@ -50,61 +50,61 @@
         .container {
             background: rgba(255, 255, 255, 0.97);
             backdrop-filter: blur(20px);
-            padding: 2.5rem 2rem;
-            border-radius: 24px;
+            padding: 2rem 1.75rem;
+            border-radius: 20px;
             box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.1);
             width: 100%;
-            max-width: 420px;
+            max-width: 400px;
             position: relative;
             z-index: 1;
         }
         .brand {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
         .brand-icon {
-            width: 72px;
-            height: 72px;
+            width: 56px;
+            height: 56px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
+            border-radius: 16px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+            margin-bottom: 0.75rem;
+            box-shadow: 0 6px 18px rgba(102, 126, 234, 0.35);
         }
         .brand-icon svg {
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             color: white;
         }
         .brand h1 {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             font-weight: 700;
             color: #1a1a2e;
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.2rem;
         }
         .brand p {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             color: #64748b;
             font-weight: 400;
         }
         .form-group {
-            margin-bottom: 1.25rem;
+            margin-bottom: 1rem;
         }
         .form-group label {
             display: block;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
             color: #475569;
             font-weight: 500;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
         }
         .form-group input {
             width: 100%;
-            padding: 0.875rem 1rem;
+            padding: 0.75rem 1rem;
             border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
             font-family: inherit;
             transition: all 0.3s ease;
             background: #f8fafc;
@@ -117,12 +117,12 @@
         }
         .btn {
             width: 100%;
-            padding: 1rem;
+            padding: 0.875rem;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 12px;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
             font-weight: 600;
             font-family: inherit;
             cursor: pointer;
@@ -139,10 +139,10 @@
         .error {
             background: #fef2f2;
             color: #dc2626;
-            padding: 0.875rem 1rem;
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-            font-size: 0.875rem;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            font-size: 0.8rem;
             border: 1px solid #fecaca;
             display: flex;
             align-items: center;
@@ -150,32 +150,32 @@
         }
         .error::before {
             content: '!';
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             background: #dc2626;
             color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 700;
             flex-shrink: 0;
         }
         .success {
             background: #f0fdf4;
             color: #16a34a;
-            padding: 0.875rem 1rem;
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-            font-size: 0.875rem;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            font-size: 0.8rem;
             border: 1px solid #bbf7d0;
         }
         .register-link {
             text-align: center;
-            margin-top: 1.5rem;
+            margin-top: 1.25rem;
             color: #64748b;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
         .register-link a {
             color: #667eea;
@@ -188,7 +188,7 @@
             text-align: center;
             margin-top: 0.75rem;
             color: #667eea;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             font-weight: 500;
         }
         .required {
@@ -198,8 +198,8 @@
         }
         .footer-note {
             text-align: center;
-            margin-top: 1.5rem;
-            font-size: 0.75rem;
+            margin-top: 1.25rem;
+            font-size: 0.7rem;
             color: #94a3b8;
         }
     </style>
