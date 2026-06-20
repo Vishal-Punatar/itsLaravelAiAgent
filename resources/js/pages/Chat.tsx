@@ -271,7 +271,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {chatContent}
             {hasAgents ? (
-                <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-row items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4">
+                <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-row items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[900px]">
                     <AgentSelector
                         agents={agents}
                         selectedAgent={selectedAgent}
