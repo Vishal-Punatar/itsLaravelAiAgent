@@ -184,9 +184,10 @@ export default function ChatLayout({
     const themeDropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Apply theme on initial load
+        // Apply theme on initial mount only
         applyTheme(theme || 'system');
-    }, [theme]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -331,12 +332,16 @@ export default function ChatLayout({
             localStorage.setItem('app_theme', newTheme);
         } catch (e) {}
         
-        // Apply theme immediately for smooth transition
+        // Apply theme to DOM immediately
         applyTheme(newTheme);
+        
+        // Update React state
         setTheme(newTheme);
+        
+        // Close dropdown
         setThemeDropdownOpen(false);
         
-        // Persist to server in background
+        // Persist to server in background (non-blocking)
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         try {
             await fetch('/profile/theme', {
@@ -358,32 +363,22 @@ export default function ChatLayout({
             ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : theme;
 
-        // Check if theme actually changed
-        const currentDataTheme = root.getAttribute('data-theme');
-        const currentEffective = currentDataTheme === 'system'
-            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-            : currentDataTheme;
-
-        if (currentEffective === effectiveTheme) return;
-
-        // Step 1: Add .transitioning class to <html> — this activates CSS transitions
-        root.classList.add('transitioning');
-
-        // Step 2: Wait 2 frames (requestAnimationFrame x2) so browser paints the
-        //         transition state BEFORE we change the actual theme values.
-        //         This makes ALL components transition as ONE unified surface.
+        // INSTANT theme switch — disable all transitions first, then snap theme
+        const style = document.createElement('style');
+        style.id = 'theme-transition-lock';
+        style.textContent = '*, *::before, *::after { transition: none !important; }';
+        document.head.appendChild(style);
+        // Force a reflow to ensure the style takes effect
+        void document.body.offsetWidth;
+        root.setAttribute('data-theme', effectiveTheme);
+        root.classList.remove('light', 'dark');
+        root.classList.add(effectiveTheme);
+        document.body.classList.remove('light', 'dark');
+        document.body.classList.add(effectiveTheme);
+        // Remove transition lock after one paint
         requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                root.classList.toggle('light', effectiveTheme === 'light');
-                root.classList.toggle('dark', effectiveTheme === 'dark');
-                root.setAttribute('data-theme', effectiveTheme);
-                // Apply to <body> too so footer and fixed/sticky elements get the class
-                document.body.classList.toggle('light', effectiveTheme === 'light');
-                document.body.classList.toggle('dark', effectiveTheme === 'dark');
-
-                // Step 3: After transition completes, remove .transitioning class
-                setTimeout(() => root.classList.remove('transitioning'), 300);
-            });
+            const lock = document.getElementById('theme-transition-lock');
+            if (lock) lock.remove();
         });
     };
 
@@ -460,7 +455,7 @@ export default function ChatLayout({
                                 <Plus className="w-3.5 h-3.5" /> New Chat
                             </div>
                             {/* Tooltip */}
-                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 rounded-lg bg-[#1a1a2e] border border-[#2d2d4a] text-white text-xs whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 shadow-xl">
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 shadow-xl">
                                 ⚠️ Add an AI agent first
                                 <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-[#2d2d4a]"></div>
                             </div>
@@ -482,7 +477,7 @@ export default function ChatLayout({
                         className={`w-full mt-1.5 px-2.5 py-1 text-[11px] rounded-md border outline-none transition-colors ${
                             theme === 'light'
                                 ? 'bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-[#667eea]'
-                                : 'bg-[#1e1e32] border-[#2d2d4a] text-white placeholder:text-[#555] focus:border-[#667eea]'
+                                : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[#667eea]'
                         }`}
                     />
                     </div>
@@ -519,7 +514,7 @@ export default function ChatLayout({
                                         <button type="submit" className="p-1 rounded-md bg-[rgba(102,126,234,0.2)] text-[#667eea] hover:bg-[rgba(102,126,234,0.3)]" title="Save">
                                             <Check className="w-3 h-3" />
                                         </button>
-                                        <button type="button" onClick={() => setEditingChatId(null)} className="p-1 rounded-md hover:bg-[rgba(231,76,60,0.2)] text-[#888] hover:text-[#e74c3c]" title="Cancel">
+                                        <button type="button" onClick={() => setEditingChatId(null)} className="p-1 rounded-md hover:bg-[rgba(231,76,60,0.2)] text-[var(--text-muted)] hover:text-[#e74c3c]" title="Cancel">
                                             <X className="w-3 h-3" />
                                         </button>
                                     </form>
@@ -547,7 +542,7 @@ export default function ChatLayout({
                                                     e.stopPropagation();
                                                     setActiveMenuChatId(activeMenuChatId === chat.id ? null : chat.id);
                                                 }}
-                                                className="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-[rgba(102,126,234,0.15)] text-[#888]"
+                                                className="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-[rgba(102,126,234,0.15)] text-[var(--text-muted)]"
                                             >
                                                 <MoreVertical className="w-3.5 h-3.5" />
                                             </button>
@@ -559,7 +554,7 @@ export default function ChatLayout({
                                                             handleTogglePin(e, chat.id, chat.is_pinned);
                                                             setActiveMenuChatId(null);
                                                         }}
-                                                        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[#b0b0b0]'}`}
+                                                        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[var(--text-secondary)]'}`}
                                                     >
                                                         {chat.is_pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
                                                         {chat.is_pinned ? 'Unpin' : 'Pin'}
@@ -570,7 +565,7 @@ export default function ChatLayout({
                                                             startRename(e, chat.id, chat.title);
                                                             setActiveMenuChatId(null);
                                                         }}
-                                                        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[#b0b0b0]'}`}
+                                                        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[var(--text-secondary)]'}`}
                                                     >
                                                         <Edit3 className="w-3 h-3" />
                                                         Rename
@@ -602,7 +597,7 @@ export default function ChatLayout({
                         <div className="w-7 h-7 rounded-full bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0">{user?.name?.charAt(0) || 'U'}</div>
                         <div className="flex-1 min-w-0">
                             <div className={`text-[11px] font-medium truncate theme-text-primary`}>{user?.name || 'User'}</div>
-                            <div className={`text-[9px] truncate ${theme === 'light' ? 'text-gray-500' : 'text-[#555]'}`}>{user?.email || 'user@email.com'}</div>
+                            <div className={`text-[9px] truncate ${theme === 'light' ? 'text-gray-500' : 'text-[var(--text-muted)]'}`}>{user?.email || 'user@email.com'}</div>
                         </div>
                     </div>
                 </div>
@@ -615,7 +610,7 @@ export default function ChatLayout({
                 <button
                     onClick={() => setSidebarMinimized(false)}
                     className={`fixed left-0 top-1/2 -translate-y-1/2 flex flex-col justify-center items-center w-10 h-10 rounded-r-lg transition-all duration-200 gap-[3px]
-                        ${theme === 'light' ? 'bg-gray-100 hover:bg-gray-200 shadow-md border border-l-0' : 'bg-[#252542] hover:bg-[#2d2d4a] shadow-lg border border-[#2d2d4a]'}
+                        ${theme === 'light' ? 'bg-gray-100 hover:bg-gray-200 shadow-md border border-l-0' : 'bg-[var(--bg-input)] hover:bg-[var(--border-color)] shadow-lg border border-[var(--border-color)]'}
                         z-50 lg:!left-0`}
                     title="Expand sidebar"
                 >
@@ -628,14 +623,14 @@ export default function ChatLayout({
             {/* Main Content */}
             <main className={`flex-1 flex flex-col min-w-0 theme-bg-app`}>
                 {/* Header */}
-                <header className={`flex flex-wrap items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3 border-b border-[rgba(102,126,234,0.12)] theme-bg-header`}>
+                <header className={`flex flex-wrap items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3 border-b border-[rgba(102,126,234,0.12)] rounded-t-3xl theme-bg-header`}>
                     <div className="flex items-center gap-2 sm:gap-3">
 
                         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors lg:hidden">
                             <Menu className="w-5 h-5" />
                         </button>
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center shadow-md shadow-[rgba(102,126,234,0.3)]">
-                            <Bot className="w-5 h-5 text-white" />
+                            <Bot className="w-5 h-5 text-[var(--text-primary)]" />
                         </div>
 
                         <div className="flex flex-col min-w-0">
@@ -656,22 +651,22 @@ export default function ChatLayout({
                                 <span className="hidden sm:inline capitalize">{theme || 'System'}</span>
                             </button>
                             {themeDropdownOpen && (
-                                <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] shadow-xl py-1 z-50">
+                                <div className={`absolute right-0 top-full mt-1 w-36 rounded-xl py-1 z-50 shadow-xl border ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-[#1a1a2e] border-[rgba(102,126,234,0.2)]'}`}>
                                     <button
                                         onClick={() => handleThemeChange('light')}
-                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors ${theme === 'light' ? 'text-[#667eea]' : 'text-[#b0b0b0]'}`}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${theme === 'light' ? 'bg-[rgba(102,126,234,0.15)] text-[#667eea]' : 'text-gray-400 hover:bg-[rgba(102,126,234,0.08)]'}`}
                                     >
                                         <Sun className="w-3.5 h-3.5" /> Light
                                     </button>
                                     <button
                                         onClick={() => handleThemeChange('dark')}
-                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors ${theme === 'dark' ? 'text-[#667eea]' : 'text-[#b0b0b0]'}`}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${theme === 'dark' ? 'bg-[rgba(102,126,234,0.15)] text-[#667eea]' : 'text-gray-400 hover:bg-[rgba(102,126,234,0.08)]'}`}
                                     >
                                         <Moon className="w-3.5 h-3.5" /> Dark
                                     </button>
                                     <button
                                         onClick={() => handleThemeChange('system')}
-                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[rgba(102,126,234,0.12)] transition-colors ${theme === 'system' || !theme ? 'text-[#667eea]' : 'text-[#b0b0b0]'}`}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${theme === 'system' || !theme ? 'bg-[rgba(102,126,234,0.15)] text-[#667eea]' : 'text-gray-400 hover:bg-[rgba(102,126,234,0.08)]'}`}
                                     >
                                         <Monitor className="w-3.5 h-3.5" /> System
                                     </button>
@@ -705,13 +700,13 @@ export default function ChatLayout({
             {/* Delete Confirmation Modal */}
             {deletingChatId && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center">
-                    <div className={`p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl ${theme === 'light' ? 'bg-white' : 'bg-[#1a1a2e] border border-[#2d2d4a]'}`}>
+                    <div className={`p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl ${theme === 'light' ? 'bg-white' : 'bg-[var(--bg-secondary)] border border-[var(--border-color)]'}`}>
                         <h3 className={`text-lg font-semibold mb-2 theme-text-primary`}>Delete Chat?</h3>
-                        <p className={`text-sm mb-5 ${theme === 'light' ? 'text-gray-500' : 'text-[#888]'}`}>This action cannot be undone. The chat and all its messages will be permanently deleted.</p>
+                        <p className={`text-sm mb-5 ${theme === 'light' ? 'text-gray-500' : 'text-[var(--text-muted)]'}`}>This action cannot be undone. The chat and all its messages will be permanently deleted.</p>
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setDeletingChatId(null)}
-                                className={`px-4 py-2 rounded-lg text-sm transition-colors ${theme === 'light' ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-[#2d2d4a] text-[#b0b0b0] hover:bg-[#3d3d5a]'}`}
+                                className={`px-4 py-2 rounded-lg text-sm transition-colors ${theme === 'light' ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[#3d3d5a]'}`}
                             >
                                 Cancel
                             </button>
@@ -755,25 +750,24 @@ export function AgentSelector({
                     flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2
                     text-sm cursor-pointer
                     transition-all duration-200
-                    hover:border-[#667eea]
                     ${isOpen ? 'border-[#667eea] shadow-lg shadow-[rgba(102,126,234,0.2)]' : ''}
-                    'theme-bg-glass border border-white/40 hover:border-[#667eea] shadow-sm'
+                    ${themeVal === 'light' ? 'theme-bg-glass border-[var(--border-color)] hover:border-[#667eea] shadow-sm' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[#667eea] shadow-sm'}
                 `}
                 style={{ width: '180px', height: '44px', boxSizing: 'border-box' }}
             >
                 <div className={`w-7 h-7 rounded-lg bg-gradient-to-r ${getProviderGradient(selectedAgent.provider)} flex items-center justify-center flex-shrink-0`}>
                     <ProviderIcon provider={selectedAgent.provider} size={16} color="#ffffff" />
                 </div>
-                <span className={`flex-1 truncate text-left font-medium text-xs text-gray-600`} title={selectedAgent.name}>
+                <span className={`flex-1 truncate text-left font-medium text-xs ${themeVal === 'light' ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`} title={selectedAgent.name}>
                     {selectedAgent.name}
                 </span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} text-gray-500`} />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} ${themeVal === 'light' ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`} />
             </button>
 
             {/* Dropdown */}
             <div className={`
                 absolute bottom-full left-0 mb-2 w-full
-                theme-bg-glass backdrop-blur-md border border-white/40 rounded-xl shadow-xl
+                ${themeVal === 'light' ? 'theme-bg-glass backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl' : 'bg-[var(--bg-secondary)] backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl'}
                 overflow-hidden z-50 shadow-xl
                 transition-all duration-200 origin-bottom
                 ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2 pointer-events-none'}
@@ -787,8 +781,8 @@ export function AgentSelector({
                                 flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg
                                 text-xs transition-all duration-150
                                 ${selectedAgent.id === agent.id 
-    ? 'bg-[rgba(102,126,234,0.2)] text-gray-700 font-semibold' 
-    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'}
+    ? themeVal === 'light' ? 'bg-[rgba(102,126,234,0.2)] text-gray-700 font-semibold' : 'bg-[rgba(102,126,234,0.15)] text-[var(--text-primary)] font-semibold' 
+    : themeVal === 'light' ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-800' : 'text-[var(--text-secondary)] hover:bg-[var(--border-color)] hover:text-[var(--text-primary)]'}
                             `}
                         >
                             <div className={`w-6 h-6 rounded-md bg-gradient-to-r ${getProviderGradient(agent.provider)} flex items-center justify-center flex-shrink-0`}>
@@ -871,7 +865,7 @@ export function ChatInput({
                         const isImage = file.type && file.type.startsWith('image/');
                         const url = URL.createObjectURL(file);
                         return (
-                            <div key={index} className={`relative flex items-center gap-1.5 px-2 py-1 rounded-md theme-bg-sidebar text-xs text-gray-600 ${isImage ? 'flex-col !px-1 !py-1' : ''}`}>
+                            <div key={index} className={`relative flex items-center gap-1.5 px-2 py-1 rounded-md theme-bg-sidebar text-xs ${theme === 'light' ? 'text-gray-600' : 'text-gray-200'} ${isImage ? 'flex-col !px-1 !py-1' : ''}`}>
                                 {isImage ? (
                                     <>
                                         <div className="relative cursor-pointer" onClick={() => setPreviewSrc(url)}>
@@ -915,7 +909,7 @@ export function ChatInput({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className={`w-[44px] h-[44px] rounded-xl border-2 flex items-center justify-center cursor-pointer transition-all duration-200 flex-shrink-0 ${
-                        'theme-bg-glass border border-white/40 text-gray-500 hover:border-[#667eea] hover:text-[#667eea] shadow-sm'
+                        theme === 'light' ? 'theme-bg-glass border-white/40 text-gray-500 hover:border-[#667eea] hover:text-[#667eea] shadow-sm' : 'bg-[var(--bg-tertiary)] border-white/10 text-gray-400 hover:border-[#667eea] hover:text-[#667eea] shadow-sm'
                     } ${attachments.length > 0 ? 'border-[#667eea] text-[#667eea]' : ''}`}
                 >
                     <Paperclip className="w-4 h-4" />
@@ -932,7 +926,7 @@ export function ChatInput({
                     rows={1}
                     className={`
                         flex-1 px-4 py-2.5 min-h-[44px] max-h-[120px] rounded-xl border-2 resize-none font-inherit leading-relaxed transition-all duration-200 focus:outline-none focus:border-[#667eea]
-                        'theme-bg-glass border border-white/40 text-gray-700 placeholder:text-gray-400 shadow-sm'
+                        ${theme === 'light' ? 'theme-bg-glass border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] shadow-sm' : 'theme-bg-input border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] shadow-sm'}
                     `}
                     style={{ boxSizing: 'border-box', height: '44px' }}
                 />
@@ -955,7 +949,7 @@ export function ChatInput({
                     <div className="relative max-w-[90vw] max-h-[90vh]">
                         <button
                             onClick={() => setPreviewSrc(null)}
-                            className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors flex items-center gap-1 text-sm cursor-pointer"
+                            className="absolute -top-10 right-0 text-[var(--text-primary)] hover:text-[var(--text-secondary)] transition-colors flex items-center gap-1 text-sm cursor-pointer"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             Close
@@ -1070,13 +1064,13 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
                             key={idx}
                             href={getAttachmentUrl(att.path, userId || 0)}
                             download={att.name}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#2d2d4a] border border-[#3d3d5a] hover:border-[#667eea] transition-colors max-w-[250px] no-underline"
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--border-color)] border border-[#3d3d5a] hover:border-[#667eea] transition-colors max-w-[250px] no-underline"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <span className="text-lg flex-shrink-0">{getFileTypeIcon(att.mime)}</span>
                             <div className="flex flex-col min-w-0">
-                                <span className="text-xs text-[#e0e0e0] truncate" title={att.name}>{att.name}</span>
-                                <span className="text-[10px] text-[#888]">{formatFileSize(att.size)}</span>
+                                <span className="text-xs text-[var(--text-primary)] truncate" title={att.name}>{att.name}</span>
+                                <span className="text-[10px] text-[var(--text-muted)]">{formatFileSize(att.size)}</span>
                             </div>
                         </a>
                     ))}
@@ -1086,12 +1080,12 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
             {hasText && (
                 <div className={`
                     px-3 py-1.5 rounded-xl text-sm leading-relaxed
-                    ${isUser ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md shadow-lg shadow-[rgba(102,126,234,0.2)]' : (themeVal === 'light' ? 'bg-white text-gray-800 border border-gray-200 rounded-bl-md' : 'bg-[#1a1a2e] text-[#d0d0d0] border border-[#2d2d4a] rounded-bl-md')}
+                    ${isUser ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md shadow-lg shadow-[rgba(102,126,234,0.2)]' : (themeVal === 'light' ? 'bg-white text-gray-800 border border-gray-200 rounded-bl-md' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-color)] rounded-bl-md')}
                 `}>
                     {formattedContent}
                 </div>
             )}
-            <span className="text-[10px] text-[#444] mt-1.5 px-1" title={message.created_at ? new Date(message.created_at).toLocaleString() : ''}>
+            <span className="text-[10px] text-[var(--text-muted)] mt-1.5 px-1" title={message.created_at ? new Date(message.created_at).toLocaleString() : ''}>
                 {message.created_at ? (() => {
                     const _d = new Date(message.created_at);
                     const _now = new Date();
@@ -1117,7 +1111,7 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
 export function TypingIndicator() {
     return (
         <div className="flex items-start self-start max-w-[75%]">
-            <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-[#1a1a2e] border border-[#2d2d4a]">
+            <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-[var(--bg-secondary)] border border-[var(--border-color)]">
                 <div className="flex gap-1">
                     <span className="w-2 h-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -1138,7 +1132,7 @@ export function Lightbox({ src, onClose }: { src: string; onClose: () => void })
             <div className="relative max-w-[90vw] max-h-[90vh]">
                 <button
                     onClick={onClose}
-                    className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors flex items-center gap-1 text-sm"
+                    className="absolute -top-10 right-0 text-[var(--text-primary)] hover:text-[var(--text-secondary)] transition-colors flex items-center gap-1 text-sm"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     Close

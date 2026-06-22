@@ -47,11 +47,11 @@ export default function AdminSettings({ agents }: AdminSettingsProps) {
             </div>
 
             {/* Agents Table */}
-            <div className="rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] overflow-hidden">
+            <div className="rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-[#2d2d4a]">
+                            <tr className="border-b border-[var(--border-color)]">
                                 <th className="px-4 py-3 text-left text-xs font-medium text-[#888] uppercase tracking-wider">Agent</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-[#888] uppercase tracking-wider">Provider</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-[#888] uppercase tracking-wider">Owner</th>
@@ -77,7 +77,7 @@ export default function AdminSettings({ agents }: AdminSettingsProps) {
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <User className="w-3.5 h-3.5 text-[#555]" />
-                                            <span className="text-sm text-[#b0b0b0]">{agent.user.name}</span>
+                                            <span className="text-sm text-[var(--text-secondary)]">{agent.user.name}</span>
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-sm text-[#888]">{formatDate(agent.created_at)}</td>

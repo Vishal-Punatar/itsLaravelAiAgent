@@ -50,7 +50,7 @@ const providers = [
 
 export default function AgentForm({ agent, agents, chats, user, isEdit = false }: AgentFormProps) {
 
-    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(user.theme ?? 'system');
+    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>((document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system') ?? user.theme ?? 'system');
     const [name, setName] = useState(agent?.name ?? '');
     const [provider, setProvider] = useState(agent?.provider ?? 'openai');
     const [apiKey, setApiKey] = useState('');
@@ -166,16 +166,16 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                     {/* Back Link */}
                     <a
                         href="/ai-agents"
-                        className={`inline-flex items-center gap-2 mb-6 text-sm ${theme === 'light' ? 'text-gray-600 hover:text-gray-800' : 'text-[#888] hover:text-white'}`}
+                        className={`inline-flex items-center gap-2 mb-6 text-sm ${theme === 'light' ? 'text-gray-600 hover:text-gray-800' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     >
                         <ArrowLeft className="w-4 h-4" /> Back to AI Agents
                     </a>
 
                     {/* Form Card */}
-                    <div className={`rounded-2xl p-6 ${theme === 'light' ? 'bg-white border border-gray-200' : 'bg-[#1a1a2e] border border-[#2d2d4a]'}`}>
+                    <div className={`rounded-2xl p-6 ${theme === 'light' ? 'bg-white border border-gray-200' : 'bg-[var(--bg-secondary)] border border-[var(--border-color)]'}`}>
                         <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center">
-                                <Bot className="w-6 h-6 text-white" />
+                                <Bot className="w-6 h-6 text-[var(--text-primary)]" />
                             </div>
                             <div>
                                 <h1 className={`text-xl font-bold theme-text-primary`}>
@@ -212,7 +212,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
 
                             {/* Agent Name */}
                             <div>
-                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[#b0b0b0]'}`}>
+                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[var(--text-secondary)]'}`}>
                                     Agent Name <span className="text-red-500">*</span>
                                 </label>
                                 <input
@@ -224,7 +224,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                                     className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors focus:outline-none focus:border-[#667eea] ${
                                         theme === 'light'
                                             ? 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'
-                                            : 'bg-[#1e1e32] border-[#2d2d4a] text-white placeholder:text-[#555]'
+                                            : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
                                     } ${errors.name ? 'border-red-500' : ''}`}
                                 />
                                 {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
@@ -232,7 +232,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
 
                             {/* Provider */}
                             <div>
-                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[#b0b0b0]'}`}>
+                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[var(--text-secondary)]'}`}>
                                     AI Provider <span className="text-red-500">*</span>
                                 </label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -246,11 +246,11 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                                                     ? 'border-[#667eea] bg-[rgba(102,126,234,0.1)]'
                                                     : theme === 'light'
                                                         ? 'border-gray-200 hover:border-gray-300'
-                                                        : 'border-[#2d2d4a] hover:border-[#3d3d5a]'
+                                                        : 'border-[var(--border-color)] hover:border-[#3d3d5a]'
                                             }`}
                                         >
                                             <ProviderIcon provider={p.value} variant="solid" size={18} className="flex-shrink-0" />
-                                            <span className={`text-xs font-medium ${theme === 'light' ? 'text-gray-700' : 'text-[#b0b0b0]'}`}>{p.label}</span>
+                                            <span className={`text-xs font-medium ${theme === 'light' ? 'text-gray-700' : 'text-[var(--text-secondary)]'}`}>{p.label}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -259,8 +259,8 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
 
                             {/* API Key */}
                             <div>
-                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[#b0b0b0]'}`}>
-                                    API Key <span className="text-red-500">*</span> {isEdit && <span className={`text-xs ${theme === 'light' ? 'text-gray-400' : 'text-[#666]'}`}>(leave blank to keep current)</span>}
+                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[var(--text-secondary)]'}`}>
+                                    API Key <span className="text-red-500">*</span> {isEdit && <span className={`text-xs ${theme === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>(leave blank to keep current)</span>}
                                 </label>
                                 <input
                                     type="password"
@@ -271,7 +271,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                                     className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors focus:outline-none focus:border-[#667eea] ${
                                         theme === 'light'
                                             ? 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'
-                                            : 'bg-[#1e1e32] border-[#2d2d4a] text-white placeholder:text-[#555]'
+                                            : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
                                     } ${errors.api_key ? 'border-red-500' : ''}`}
                                 />
                                 {errors.api_key && <p className="text-red-500 text-xs mt-1">{errors.api_key}</p>}
@@ -279,7 +279,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
 
                             {/* Model */}
                             <div>
-                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[#b0b0b0]'}`}>
+                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[var(--text-secondary)]'}`}>
                                     Model
                                 </label>
                                 <input
@@ -290,17 +290,17 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                                     className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors focus:outline-none focus:border-[#667eea] ${
                                         theme === 'light'
                                             ? 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'
-                                            : 'bg-[#1e1e32] border-[#2d2d4a] text-white placeholder:text-[#555]'
+                                            : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
                                     } ${errors.model ? 'border-red-500' : ''}`}
                                 />
-                                <p className={`text-xs mt-1 ${theme === 'light' ? 'text-gray-400' : 'text-[#666]'}`}>
+                                <p className={`text-xs mt-1 ${theme === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
                                     {getModelHint(provider)}
                                 </p>
                                 {errors.model && <p className="text-red-500 text-xs mt-1">{errors.model}</p>}
                             </div>
 
                             {/* Default Checkbox */}
-                            <div className={`flex items-center gap-3 p-3 rounded-xl ${theme === 'light' ? 'bg-gray-50' : 'bg-[#1e1e32]'}`}>
+                            <div className={`flex items-center gap-3 p-3 rounded-xl ${theme === 'light' ? 'bg-gray-50' : 'bg-[var(--bg-tertiary)]'}`}>
                                 <input
                                     type="checkbox"
                                     id="is_default"
@@ -308,7 +308,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                                     onChange={(e) => setIsDefault(e.target.checked)}
                                     className="w-4 h-4 rounded border-2 border-[#667eea] text-[#667eea] focus:ring-[#667eea] focus:ring-offset-0"
                                 />
-                                <label htmlFor="is_default" className={`text-sm cursor-pointer ${theme === 'light' ? 'text-gray-700' : 'text-[#b0b0b0]'}`}>
+                                <label htmlFor="is_default" className={`text-sm cursor-pointer ${theme === 'light' ? 'text-gray-700' : 'text-[var(--text-secondary)]'}`}>
                                     Set as default agent for new chats
                                 </label>
                             </div>
@@ -322,7 +322,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                                     className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                                         theme === 'light'
                                             ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            : 'bg-[#252542] text-[#b0b0b0] hover:bg-[#2d2d4a]'
+                                            : 'bg-[#252542] text-[var(--text-secondary)] hover:bg-[#2d2d4a]'
                                     }`}
                                 >
                                     Cancel

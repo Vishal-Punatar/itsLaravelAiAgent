@@ -27,17 +27,17 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <a href="/chat" className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors">
-                        <ArrowLeft className="w-5 h-5 text-[#888]" />
+                        <ArrowLeft className="w-5 h-5 text-[var(--text-muted)]" />
                     </a>
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-white" />
+                        <Shield className="w-5 h-5 text-[var(--text-primary)]" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
+                        <h1 className="text-xl font-bold text-[var(--text-primary)]">Admin Dashboard</h1>
                         <p className="text-xs text-[#666]">Manage your application</p>
                     </div>
                 </div>
-                <a href="/chat" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#888] hover:text-white hover:bg-[rgba(102,126,234,0.1)] transition-all">
+                <a href="/chat" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
                     <MessageCircle className="w-3.5 h-3.5" /> Back to Chat
                 </a>
             </div>
@@ -45,47 +45,47 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {statCards.map((stat, index) => (
-                    <div key={index} className="p-4 rounded-xl bg-[#1a1a2e] border border-[#2d2d4a]">
+                    <div key={index} className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
                         <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs text-[#888]">{stat.label}</span>
+                            <span className="text-xs text-[var(--text-muted)]">{stat.label}</span>
                             <div className={`w-8 h-8 rounded-lg bg-gradient-to-r ${stat.color} flex items-center justify-center`}>
-                                <stat.icon className="w-4 h-4 text-white" />
+                                <stat.icon className="w-4 h-4 text-[var(--text-primary)]" />
                             </div>
                         </div>
-                        <div className="text-2xl font-bold text-white">{stat.value.toLocaleString()}</div>
+                        <div className="text-2xl font-bold text-[var(--text-primary)]">{stat.value.toLocaleString()}</div>
                     </div>
                 ))}
             </div>
 
             {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <a href="/admin/users" className="p-5 rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] hover:border-[rgba(102,126,234,0.4)] transition-all group">
+                <a href="/admin/users" className="p-5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:border-[rgba(102,126,234,0.4)] transition-all group">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center">
-                                <Users className="w-5 h-5 text-white" />
+                                <Users className="w-5 h-5 text-[var(--text-primary)]" />
                             </div>
                             <div>
-                                <h3 className="text-sm font-semibold text-white">Manage Users</h3>
+                                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Manage Users</h3>
                                 <p className="text-xs text-[#666]">View and edit user accounts</p>
                             </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-[#555] group-hover:text-white group-hover:translate-x-1 transition-all" />
+                        <ChevronRight className="w-5 h-5 text-[#555] group-hover:text-[var(--text-primary)] group-hover:translate-x-1 transition-all" />
                     </div>
                 </a>
 
-                <a href="/admin/models" className="p-5 rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] hover:border-[rgba(102,126,234,0.4)] transition-all group">
+                <a href="/admin/models" className="p-5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:border-[rgba(102,126,234,0.4)] transition-all group">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#10a37f] to-[#0d8a6a] flex items-center justify-center">
-                                <Bot className="w-5 h-5 text-white" />
+                                <Bot className="w-5 h-5 text-[var(--text-primary)]" />
                             </div>
                             <div>
-                                <h3 className="text-sm font-semibold text-white">AI Models</h3>
+                                <h3 className="text-sm font-semibold text-[var(--text-primary)]">AI Models</h3>
                                 <p className="text-xs text-[#666]">View available AI models</p>
                             </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-[#555] group-hover:text-white group-hover:translate-x-1 transition-all" />
+                        <ChevronRight className="w-5 h-5 text-[#555] group-hover:text-[var(--text-primary)] group-hover:translate-x-1 transition-all" />
                     </div>
                 </a>
             </div>

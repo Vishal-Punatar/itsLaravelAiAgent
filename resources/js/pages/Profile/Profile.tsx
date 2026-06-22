@@ -34,10 +34,10 @@ interface ProfilePageProps {
 const inputCls = 'w-full px-3 py-2 rounded-lg border-2 text-sm outline-none transition-colors theme-bg-input theme-border theme-text-primary focus:border-[#667eea]';
 const labelCls = 'block text-xs mb-1 theme-text-secondary';
 const btnCls = 'px-4 py-1.5 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-xs font-medium hover:shadow-md hover:shadow-[rgba(102,126,234,0.3)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
-const sectionCls = 'rounded-xl p-4 theme-bg-card theme-border';
+const sectionCls = 'rounded-xl p-4 theme-bg-card border-0';
 
 export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
-    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(user.theme ?? 'system');
+    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>((document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system') ?? user.theme ?? 'system');
     const [name, setName] = useState(user.name);
     const [email, setEmail] = useState(user.email);
     const [currentPassword, setCurrentPassword] = useState('');
@@ -54,6 +54,16 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+        // Immediately apply theme to DOM so user sees the change right away
+        const effective = newTheme === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : newTheme;
+        const root = document.documentElement;
+        root.classList.remove('light', 'dark');
+        document.body.classList.remove('light', 'dark');
+        root.classList.add(effective);
+        document.body.classList.add(effective);
+        root.setAttribute('data-theme', effective);
         // Update state — ChatLayout's useLayoutEffect applies the theme to DOM
         setTheme(newTheme);
         try { localStorage.setItem('app_theme', newTheme); } catch (e) {}
@@ -112,7 +122,7 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
             <Head title="Profile - ThinkChat" />
             <ChatLayout agents={agents} chats={chats} user={user} theme={theme}>
                 <div className="flex-1 overflow-y-auto p-4 md:p-5 theme-bg-app">
-                    <div className="max-w-4xl mx-auto space-y-3">
+                    <div className="max-w-[900px] mx-auto space-y-3">
                         {/* Page Header */}
                         <div className={sectionCls}>
                             <div className="flex items-center gap-3">
@@ -145,7 +155,7 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
                         <div className={sectionCls}>
                             <h2 className="text-sm font-semibold mb-2 theme-text-primary">Appearance</h2>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                                <div className="flex gap-1 p-0.5 rounded-lg theme-bg-input theme-border flex-wrap">
+                                <div className="flex gap-1 p-0.5 rounded-lg theme-bg-input flex-wrap">
                                     {themeOptions.map(({ value, label, Icon }) => (
                                         <button
                                             key={value}

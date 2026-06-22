@@ -45,11 +45,11 @@ export default function AdminUsers({ users }: AdminUsersProps) {
             </div>
 
             {/* Users Table */}
-            <div className="rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] overflow-hidden">
+            <div className="rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-[#2d2d4a]">
+                            <tr className="border-b border-[var(--border-color)]">
                                 <th className="px-4 py-3 text-left text-xs font-medium text-[#888] uppercase tracking-wider">User</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-[#888] uppercase tracking-wider">Role</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-[#888] uppercase tracking-wider">Chats</th>
@@ -83,8 +83,8 @@ export default function AdminUsers({ users }: AdminUsersProps) {
                                             </span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-[#b0b0b0]">{user.chats_count}</td>
-                                    <td className="px-4 py-3 text-sm text-[#b0b0b0]">{user.messages_count}</td>
+                                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{user.chats_count}</td>
+                                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{user.messages_count}</td>
                                     <td className="px-4 py-3 text-sm text-[#888]">{formatDate(user.created_at)}</td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center justify-end gap-2">

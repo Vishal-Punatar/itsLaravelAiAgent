@@ -37,9 +37,9 @@ export default function AdminModels({ models }: AdminModelsProps) {
                 {Object.entries(models).map(([key, provider]) => {
                     const gradient = getProviderGradient(key);
                     return (
-                        <div key={key} className="rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] overflow-hidden">
+                        <div key={key} className="rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] overflow-hidden">
                             {/* Provider Header */}
-                            <div className="p-4 border-b border-[#2d2d4a]">
+                            <div className="p-4 border-b border-[var(--border-color)]">
                                 <div className="flex items-center gap-3">
                                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-r ${gradient} flex items-center justify-center`}>
                                         <ProviderIcon provider={key} size={22} color="#ffffff" />

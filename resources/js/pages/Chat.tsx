@@ -55,6 +55,16 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     const [attachments, setAttachments] = useState<File[]>([]);
     const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
+    // Sync theme state with data-theme attribute when it changes (e.g., via theme toggle)
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            const newTheme = document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system';
+            if (newTheme) setTheme(newTheme);
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => observer.disconnect();
+    }, []);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const agentSelectorRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -193,7 +203,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     };
 
     const chatContent = (
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 flex flex-col gap-3 theme-bg-app">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 pt-6 flex flex-col gap-4 theme-bg-app">
             {localMessages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center">
                     {/* Welcome Icon */}
@@ -216,21 +226,21 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
                                 <Zap className="w-4 h-4 text-white" />
                             </div>
                             <h3 className="text-xs font-semibold text-white mb-0.5">Fast</h3>
-                            <p className="text-[10px] text-[#666]">Quick AI responses</p>
+                            <p className="text-[10px] text-[#888]">Quick AI responses</p>
                         </div>
                         <div className="p-3.5 rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] text-left hover:border-[rgba(102,126,234,0.3)] transition-colors">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center mb-2.5">
                                 <MessageSquare className="w-4 h-4 text-white" />
                             </div>
                             <h3 className="text-xs font-semibold text-white mb-0.5">Multi-Agent</h3>
-                            <p className="text-[10px] text-[#666]">Choose your AI</p>
+                            <p className="text-[10px] text-[#888]">Choose your AI</p>
                         </div>
                         <div className="p-3.5 rounded-xl bg-[#1a1a2e] border border-[#2d2d4a] text-left hover:border-[rgba(102,126,234,0.3)] transition-colors">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center mb-2.5">
                                 <Sparkles className="w-4 h-4 text-white" />
                             </div>
                             <h3 className="text-xs font-semibold text-white mb-0.5">Smart</h3>
-                            <p className="text-[10px] text-[#666]">Context aware</p>
+                            <p className="text-[10px] text-[#888]">Context aware</p>
                         </div>
                     </div>
                 </div>
@@ -247,7 +257,7 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
                         <button
                             onClick={scrollToBottom}
                             className={`fixed bottom-24 right-6 flex items-center justify-center w-10 h-10 rounded-full shadow-lg transition-all duration-200 z-40
-                                ${theme === 'light' ? 'bg-white border border-gray-200 hover:bg-gray-50' : 'bg-[#252542] hover:bg-[#2d2d4a]'}
+                                ${theme === 'light' ? 'bg-white border border-gray-200 hover:bg-gray-50' : 'bg-[#252542] hover:bg-[var(--border-color)]'}
                                 animate-bounce-subtle`}
                             title="Scroll to bottom"
                         >

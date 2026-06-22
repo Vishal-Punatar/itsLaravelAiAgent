@@ -116,12 +116,12 @@ export default function UserEdit({ user }: UserEditProps) {
                 )}
                 {/* Name */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-[#b0b0b0]">Name <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">Name <span className="text-red-500">*</span></label>
                     <input
                         type="text"
                         value={data.name}
                         onChange={(e) => setData('name', e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-[#1e1e32] border-2 border-[#2d2d4a] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
+                        className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border-2 border-[var(--border-color)] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
                         placeholder="Enter user name"
                     />
                     {errors.name && <p className="text-xs text-[#e74c3c]">{errors.name}</p>}
@@ -129,12 +129,12 @@ export default function UserEdit({ user }: UserEditProps) {
 
                 {/* Email */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-[#b0b0b0]">Email <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">Email <span className="text-red-500">*</span></label>
                     <input
                         type="email"
                         value={data.email}
                         onChange={(e) => setData('email', e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-[#1e1e32] border-2 border-[#2d2d4a] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
+                        className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border-2 border-[var(--border-color)] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
                         placeholder="Enter email address"
                     />
                     {errors.email && <p className="text-xs text-[#e74c3c]">{errors.email}</p>}
@@ -142,7 +142,7 @@ export default function UserEdit({ user }: UserEditProps) {
 
                 {/* Password (admin reset) */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-[#b0b0b0]">
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">
                         New Password
                     </label>
                     <div className="relative">
@@ -154,7 +154,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                 setPasswordTouched(true);
                                 setData('password', e.target.value);
                             }}
-                            className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-[#1e1e32] border-2 border-[#2d2d4a] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
+                            className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border-2 border-[var(--border-color)] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
                             placeholder="Leave blank to keep current password"
                             autoComplete="new-password"
                         />
@@ -179,7 +179,7 @@ export default function UserEdit({ user }: UserEditProps) {
                 {/* Password confirmation (only shown if user started typing a new password) */}
                 {passwordTouched && (
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-[#b0b0b0]">
+                        <label className="text-sm font-medium text-[var(--text-secondary)]">
                             Confirm New Password
                         </label>
                         <div className="relative">
@@ -188,7 +188,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                 type={showPassword ? 'text' : 'password'}
                                 value={data.password_confirmation}
                                 onChange={(e) => setData('password_confirmation', e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1e1e32] border-2 border-[#2d2d4a] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
+                                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border-2 border-[var(--border-color)] text-white text-sm placeholder:text-[#555] focus:outline-none focus:border-[#667eea] transition-colors"
                                 placeholder="Re-enter the new password"
                                 autoComplete="new-password"
                             />
@@ -200,7 +200,7 @@ export default function UserEdit({ user }: UserEditProps) {
                 )}
 
                 {/* Admin Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-[#1e1e32] border border-[#2d2d4a]">
+                <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-r from-[#e74c3c] to-[#c0392b] flex items-center justify-center">
                             <Shield className="w-4 h-4 text-white" />
@@ -230,7 +230,7 @@ export default function UserEdit({ user }: UserEditProps) {
                     >
                         <Save className="w-4 h-4" /> Save Changes
                     </button>
-                    <Link href="/admin/users" className="px-5 py-2.5 rounded-xl bg-[#1e1e32] border border-[#2d2d4a] text-[#b0b0b0] text-sm hover:bg-[#252542] transition-colors">
+                    <Link href="/admin/users" className="px-5 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] text-sm hover:bg-[var(--bg-input)] transition-colors">
                         Cancel
                     </Link>
                 </div>

@@ -33,7 +33,7 @@ interface AgentsPageProps {
 }
 
 export default function AgentsPage({ agents, chats, user }: AgentsPageProps) {
-    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(user.theme ?? 'system');
+    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>((document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system') ?? user.theme ?? 'system');
     const [deleteMessage, setDeleteMessage] = useState<{text: string; type: 'success'|'error'}|null>(null);
     const [agentList, setAgentList] = useState(agents);
 

@@ -7,20 +7,16 @@
         <title>{{ $title ?? 'ThinkChat' }}</title>
         <script>
             // Apply theme BEFORE React mounts to prevent flash of wrong theme.
-            // Source of truth = DB (auth()->user()->theme) for logged-in users.
-            // localStorage is only a fallback for guests or pre-login flashes.
+            // Source of truth = localStorage (user's active choice) for all navigations.
             (function() {
                 try {
-                    var dbTheme = @json(auth()->user()->theme ?? null);
-                    var lsTheme = null;
-                    try { lsTheme = localStorage.getItem('app_theme'); } catch (e) {}
-                    var theme = dbTheme || lsTheme || 'system';
+                    var lsTheme = localStorage.getItem('app_theme');
+                    var theme = lsTheme || @json(auth()->user()->theme ?? null) || 'system';
                     var root = document.documentElement;
                     var resolved = theme;
                     if (theme === 'system') {
                         resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
                     }
-                    // Always reset both classes first to avoid stale state
                     root.classList.remove('light', 'dark');
                     document.body.classList.remove('light', 'dark');
                     if (resolved === 'light') {
@@ -31,13 +27,35 @@
                         document.body.classList.add('dark');
                     }
                     root.setAttribute('data-theme', resolved);
-                } catch (e) {
-                    // localStorage might not be available
-                }
+                } catch (e) {}
             })();
         </script>
         @viteReactRefresh
         @vite(['resources/js/app.tsx', 'resources/css/app.css'])
+        <script>
+            // Re-apply theme on every Inertia client-side navigation
+            document.addEventListener('inertia:start', function() {
+                try {
+                    var lsTheme = localStorage.getItem('app_theme');
+                    var theme = lsTheme || @json(auth()->user()->theme ?? null) || 'system';
+                    var root = document.documentElement;
+                    var resolved = theme;
+                    if (theme === 'system') {
+                        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                    }
+                    root.classList.remove('light', 'dark');
+                    document.body.classList.remove('light', 'dark');
+                    if (resolved === 'light') {
+                        root.classList.add('light');
+                        document.body.classList.add('light');
+                    } else if (resolved === 'dark') {
+                        root.classList.add('dark');
+                        document.body.classList.add('dark');
+                    }
+                    root.setAttribute('data-theme', resolved);
+                } catch (e) {}
+            });
+        </script>
     </head>
     <body>
         @inertia

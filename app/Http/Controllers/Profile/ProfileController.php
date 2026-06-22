@@ -61,7 +61,7 @@ class ProfileController extends Controller
 
         $user->update($validated);
 
-        return redirect('/profile')->with('success', 'Profile updated successfully!');
+        return response()->json(['success' => true, 'message' => 'Profile updated successfully!']);
     }
 
     public function changePassword(Request $request)
@@ -74,14 +74,14 @@ class ProfileController extends Controller
         ]);
 
         if (!Hash::check($validated['current_password'], $user->password)) {
-            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+            return response()->json(['success' => false, 'error' => 'Current password is incorrect.'], 422);
         }
 
         $user->update([
             'password' => Hash::make($validated['password']),
         ]);
 
-        return redirect('/profile')->with('success', 'Password changed successfully!');
+        return response()->json(['success' => true, 'message' => 'Password changed successfully!']);
     }
 
     public function updateTheme(Request $request)

@@ -87,7 +87,8 @@ if (typeof marked === 'undefined') {
             transition: background 0.3s, color 0.3s;
         }
         
-        .header { 
+        .header {
+            border-radius: 12px 12px 0 0; 
             background: var(--header-bg); 
             color: white; 
             padding: 0.875rem 1.5rem; 
@@ -106,7 +107,7 @@ if (typeof marked === 'undefined') {
             color: white;
             border: none;
             padding: 0.4rem 0.875rem;
-            border-radius: 20px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.8rem;
             text-decoration: none;
@@ -163,7 +164,7 @@ if (typeof marked === 'undefined') {
             background: var(--accent-gradient);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 4px;
             cursor: pointer;
             font-weight: 600;
             font-size: 0.85rem;
@@ -215,7 +216,7 @@ if (typeof marked === 'undefined') {
             padding: 0.75rem;
             cursor: pointer;
             transition: all 0.2s;
-            border-radius: 10px;
+            border-radius: 4px;
             margin-bottom: 0.35rem;
             border: 1px solid transparent;
             background: transparent;
@@ -333,7 +334,7 @@ if (typeof marked === 'undefined') {
         
         .message-bubble {
             padding: 0.6rem 0.875rem;
-            border-radius: 14px;
+            border-radius: 8px;
             line-height: 1.4;
             word-wrap: break-word;
             font-size: 0.9rem;
@@ -376,7 +377,7 @@ if (typeof marked === 'undefined') {
         .message-bubble pre { 
             background: var(--bg-tertiary); 
             padding: 0.5em 0.75em; 
-            border-radius: 6px; 
+            border-radius: 4px; 
             overflow-x: auto;
             margin: 0.3em 0;
         }
@@ -485,7 +486,7 @@ if (typeof marked === 'undefined') {
             padding: 0 1rem;
             background: var(--bg-input);
             border: 2px solid var(--border-secondary);
-            border-radius: 14px;
+            border-radius: 8px;
             font-size: 0.9rem;
             color: var(--text-primary);
             cursor: pointer;
@@ -521,7 +522,7 @@ if (typeof marked === 'undefined') {
             margin-bottom: 0.5rem;
             background: var(--bg-secondary);
             border: 1px solid var(--border-secondary);
-            border-radius: 12px;
+            border-radius: 4px;
             overflow: hidden;
             display: none;
             z-index: 100;
@@ -566,7 +567,7 @@ if (typeof marked === 'undefined') {
             padding: 0 1rem;
             background: var(--bg-input);
             border: 2px solid var(--border-secondary);
-            border-radius: 14px;
+            border-radius: 8px;
             font-size: 0.9rem;
             resize: none;
             min-height: 46px;
@@ -668,7 +669,7 @@ if (typeof marked === 'undefined') {
             gap: 0.4rem;
             padding: 0.4rem 0.6rem;
             background: var(--bg-input);
-            border-radius: 6px;
+            border-radius: 4px;
             font-size: 0.75rem;
             color: var(--text-primary);
         }
@@ -764,7 +765,7 @@ if (typeof marked === 'undefined') {
             background: var(--error-bg);
             color: var(--error-color);
             padding: 0.875rem 1.25rem;
-            border-radius: 12px;
+            border-radius: 4px;
             margin: 1rem 2rem;
             font-size: 0.9rem;
             text-align: center;
@@ -821,7 +822,7 @@ if (typeof marked === 'undefined') {
             gap: 0.35rem;
             padding: 1rem 1.25rem;
             background: var(--message-assistant-bg);
-            border-radius: 18px;
+            border-radius: 4px;
             align-self: flex-start;
             border: 1px solid var(--message-assistant-border);
         }
@@ -838,7 +839,7 @@ if (typeof marked === 'undefined') {
         @keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
     </style>
 </head>
-<body>
+<body style="background-color: var(--color-background);">
     <div class="header">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
             <button class="sidebar-toggle visible" id="sidebarToggle" onclick="toggleSidebarMinimize()" title="Toggle sidebar">
@@ -1055,13 +1056,24 @@ if (typeof marked === 'undefined') {
         }
         
         function applyTheme(theme) {
+            // INSTANT theme switch — disable all transitions before theme change
+            var style = document.createElement('style');
+            style.id = 'theme-transition-lock';
+            style.textContent = '*, *::before, *::after { transition: none !important; }';
+            document.head.appendChild(style);
+            void document.body.offsetWidth;
             if (theme === 'dark') {
                 document.documentElement.setAttribute('data-theme', 'dark');
             } else {
-                document.documentElement.removeAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', 'light');
             }
             updateThemeIcon(theme);
             setStoredTheme(theme);
+            // Re-enable transitions after one paint
+            requestAnimationFrame(function() {
+                var lock = document.getElementById('theme-transition-lock');
+                if (lock) lock.remove();
+            });
         }
         
         function updateThemeIcon(theme) {
