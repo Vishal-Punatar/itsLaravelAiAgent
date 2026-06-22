@@ -45,6 +45,7 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState(false);
     const [changingPassword, setChangingPassword] = useState(false);
     const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -83,6 +84,7 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
         setSaving(true);
         setSuccessMessage('');
         setErrorMessage('');
+        setFieldErrors({});
 
         try {
             const response = await fetch('/profile', {
@@ -93,6 +95,10 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
             const data = await response.json();
             if (response.ok) {
                 setSuccessMessage(data.message || 'Profile updated successfully!');
+                setTimeout(() => setSuccessMessage(''), 4000);
+            } else if (response.status === 422 && data.errors) {
+                setFieldErrors(data.errors);
+                setErrorMessage(data.message || 'Please fix the errors below.');
             } else {
                 setErrorMessage(data.error || 'Failed to update profile.');
             }
@@ -184,11 +190,13 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
                             <div className="space-y-3">
                                 <div>
                                     <label className={labelCls}>Name</label>
-                                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+                                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls + (fieldErrors.name ? ' !border-red-500' : '')} />
+                                    {fieldErrors.name && <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>}
                                 </div>
                                 <div>
                                     <label className={labelCls}>Email</label>
-                                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+                                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls + (fieldErrors.email ? ' !border-red-500' : '')} />
+                                    {fieldErrors.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
                                 </div>
                                 <button type="submit" disabled={saving} className={btnCls}>
                                     {saving ? 'Saving...' : 'Save Changes'}
@@ -258,7 +266,11 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
                                             const d = await res.json();
                                             if (res.ok) {
                                                 setSuccessMessage('Password changed successfully!');
+                                                setTimeout(() => setSuccessMessage(''), 4000);
                                                 setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+                                            } else if (res.status === 422 && d.errors) {
+                                                setFieldErrors(d.errors);
+                                                setErrorMessage(d.message || 'Please fix the errors below.');
                                             } else { setErrorMessage(d.error || 'Failed to change password.'); }
                                         } catch { setErrorMessage('An error occurred.'); }
                                         finally { setChangingPassword(false); }

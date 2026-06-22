@@ -179,7 +179,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                             </div>
                             <div>
                                 <h1 className={`text-xl font-bold theme-text-primary`}>
-                                    {isEdit ? 'Edit AI Agent' : 'Add New AI Agent'}
+                                    {isEdit ? 'Update AI Agent' : 'Add New AI Agent'}
                                 </h1>
                                 <p className={`text-sm theme-text-muted`}>
                                     {isEdit ? 'Update agent configuration' : 'Configure a new AI provider'}
