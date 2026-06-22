@@ -1089,7 +1089,7 @@ html.transitioning *::after {
        (--theme-bg-sidebar) reads as a distinct surface next to it. Tailwind
        slate-200 sits between slate-100 (too close to white) and slate-300
        (too dark) — gives a clean "canvas" look that makes cards/inputs pop. */
-    --theme-bg-app: #1a1a2e;
+    --theme-bg-app: #f8f9fa;
     --theme-bg-glass: rgba(255, 255, 255, 0.88);
     --theme-bg-sidebar: #f8f9fa;
     --theme-bg-header: #ffffff;

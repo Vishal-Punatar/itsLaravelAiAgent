@@ -327,9 +327,13 @@ export default function ChatLayout({
     };
 
     const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
-        // Save to localStorage immediately so theme persists across page loads
+        // Resolve 'system' to an actual value and save that — never store 'system'
+        // so blade's inertia:start script uses a stable value on every navigation
+        const resolved = newTheme === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : newTheme;
         try {
-            localStorage.setItem('app_theme', newTheme);
+            localStorage.setItem('app_theme', resolved);
         } catch (e) {}
         
         // Apply theme to DOM immediately

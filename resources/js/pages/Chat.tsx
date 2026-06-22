@@ -51,17 +51,23 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
     const [localMessages, setLocalMessages] = useState<Message[]>(chat?.messages || []);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showTyping, setShowTyping] = useState(false);
-    const [theme, setTheme] = useState((document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system') ?? user?.theme ?? 'system');
+    const [theme, setTheme] = useState((): 'light' | 'dark' | 'system' => {
+        // Read from body's class (set by blade template / applyTheme) — this is the most reliable source
+        if (document.body.classList.contains('light')) return 'light';
+        if (document.body.classList.contains('dark')) return 'dark';
+        // Fallback to page props or data-theme attribute
+        return (user?.theme as 'light' | 'dark' | 'system') ?? document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system' ?? 'system';
+    });
     const [attachments, setAttachments] = useState<File[]>([]);
     const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
-    // Sync theme state with data-theme attribute when it changes (e.g., via theme toggle)
+    // Sync theme state when body's class changes (blade template toggles .light/.dark on body)
     useEffect(() => {
         const observer = new MutationObserver(() => {
-            const newTheme = document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system';
-            if (newTheme) setTheme(newTheme);
+            if (document.body.classList.contains('light')) { setTheme('light'); return; }
+            if (document.body.classList.contains('dark')) { setTheme('dark'); return; }
         });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         return () => observer.disconnect();
     }, []);
 

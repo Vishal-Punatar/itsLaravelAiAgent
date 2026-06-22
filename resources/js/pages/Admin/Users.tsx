@@ -1,4 +1,5 @@
-import { Users, Trash2, Edit, ChevronRight, Shield, User, ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Trash2, Edit, ChevronRight, Shield, User, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 
 interface UserData {
     id: number;
@@ -12,9 +13,64 @@ interface UserData {
 
 interface AdminUsersProps {
     users: UserData[];
+    flash?: { success?: string; error?: string };
 }
 
-export default function AdminUsers({ users }: AdminUsersProps) {
+interface Toast {
+    id: number;
+    type: 'success' | 'error';
+    message: string;
+}
+
+export default function AdminUsers({ users, flash }: AdminUsersProps) {
+    const [userList, setUserList] = useState(users);
+    const [toasts, setToasts] = useState<Toast[]>([]);
+
+    // Show flash toast from server-side session flash (survives one page load, gone on refresh)
+    useEffect(() => {
+        if (flash?.success) addToast('success', flash.success);
+        if (flash?.error) addToast('error', flash.error);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const addToast = (type: 'success' | 'error', message: string) => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, type, message }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 4000);
+    };
+
+    const handleDelete = async (userId: number, userName: string) => {
+        if (!confirm(`Are you sure you want to delete "${userName}"? This will delete all their chats and agents.`)) {
+            return;
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        try {
+            const response = await fetch(`/admin/users/${userId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ _method: 'DELETE' }),
+            });
+
+            if (response.ok || response.redirected) {
+                setUserList(prev => prev.filter(u => u.id !== userId));
+                addToast('success', `"${userName}" has been deleted.`);
+            } else {
+                const data = await response.json().catch(() => ({}));
+                addToast('error', data.error || 'Failed to delete user.');
+            }
+        } catch {
+            addToast('error', 'Network error. Please try again.');
+        }
+    };
+
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('en-US', {
             month: 'short',
@@ -25,6 +81,25 @@ export default function AdminUsers({ users }: AdminUsersProps) {
 
     return (
         <div className="p-6 space-y-6">
+            {/* Toast Notifications */}
+            {toasts.map((toast) => (
+                <div
+                    key={toast.id}
+                    className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm animate-slide-in ${
+                        toast.type === 'success'
+                            ? 'bg-green-500/15 border-green-500/30 text-green-400'
+                            : 'bg-red-500/15 border-red-500/30 text-red-400'
+                    }`}
+                >
+                    {toast.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    ) : (
+                        <XCircle className="w-4 h-4 flex-shrink-0" />
+                    )}
+                    <span>{toast.message}</span>
+                </div>
+            ))}
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -36,7 +111,7 @@ export default function AdminUsers({ users }: AdminUsersProps) {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-white">Users</h1>
-                        <p className="text-xs text-[#666]">{users.length} total users</p>
+                        <p className="text-xs text-[#666]">{userList.length} total users</p>
                     </div>
                 </div>
                 <a href="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#888] hover:text-white hover:bg-[rgba(102,126,234,0.1)] transition-all">
@@ -59,7 +134,7 @@ export default function AdminUsers({ users }: AdminUsersProps) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#2d2d4a]">
-                            {users.map((user) => (
+                            {userList.map((user) => (
                                 <tr key={user.id} className="hover:bg-[rgba(102,126,234,0.05)] transition-colors">
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-3">
@@ -91,18 +166,13 @@ export default function AdminUsers({ users }: AdminUsersProps) {
                                             <a href={`/admin/users/${user.id}/edit`} className="p-1.5 rounded-lg hover:bg-[rgba(102,126,234,0.15)] text-[#888] hover:text-white transition-colors">
                                                 <Edit className="w-4 h-4" />
                                             </a>
-                                            {user.id !== 1 && (
-                                                <form action={`/admin/users/${user.id}`} method="POST" className="inline" onSubmit={(e) => {
-                                                    if (!confirm('Are you sure you want to delete this user? This will delete all their chats and agents.')) {
-                                                        e.preventDefault();
-                                                    }
-                                                }}>
-                                                    <input type="hidden" name="_token" id="csrf_token" value="" />
-                                                    <input type="hidden" name="_method" value="DELETE" />
-                                                    <button type="submit" className="p-1.5 rounded-lg hover:bg-[rgba(231,76,60,0.15)] text-[#888] hover:text-[#e74c3c] transition-colors">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </form>
+                                            {!user.is_admin && (
+                                                <button
+                                                    onClick={() => handleDelete(user.id, user.name)}
+                                                    className="p-1.5 rounded-lg hover:bg-[rgba(231,76,60,0.15)] text-[#888] hover:text-[#e74c3c] transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             )}
                                         </div>
                                     </td>

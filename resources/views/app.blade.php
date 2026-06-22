@@ -27,32 +27,33 @@
                         document.body.classList.add('dark');
                     }
                     root.setAttribute('data-theme', resolved);
+                    // Persist resolved value so inertia:start never sees 'system'
+                    try { localStorage.setItem('app_theme', resolved); } catch (e) {}
                 } catch (e) {}
             })();
         </script>
         @viteReactRefresh
         @vite(['resources/js/app.tsx', 'resources/css/app.css'])
         <script>
-            // Re-apply theme on every Inertia client-side navigation
+            // Re-apply theme on every Inertia client-side navigation.
+            // ChatLayout saves the resolved (never 'system') value to localStorage,
+            // so we just read it directly — no recalculation needed.
             document.addEventListener('inertia:start', function() {
                 try {
                     var lsTheme = localStorage.getItem('app_theme');
-                    var theme = lsTheme || @json(auth()->user()->theme ?? null) || 'system';
+                    var theme = lsTheme || @json(auth()->user()->theme ?? null) || 'dark';
                     var root = document.documentElement;
-                    var resolved = theme;
-                    if (theme === 'system') {
-                        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                    }
                     root.classList.remove('light', 'dark');
                     document.body.classList.remove('light', 'dark');
-                    if (resolved === 'light') {
+                    if (theme === 'light') {
                         root.classList.add('light');
                         document.body.classList.add('light');
-                    } else if (resolved === 'dark') {
+                        root.setAttribute('data-theme', 'light');
+                    } else {
                         root.classList.add('dark');
                         document.body.classList.add('dark');
+                        root.setAttribute('data-theme', 'dark');
                     }
-                    root.setAttribute('data-theme', resolved);
                 } catch (e) {}
             });
         </script>

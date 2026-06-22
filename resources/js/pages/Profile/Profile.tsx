@@ -117,6 +117,16 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
         } catch (error) { window.location.href = '/login'; }
     };
 
+    // Sync theme state with data-theme attribute when it changes (e.g., via theme toggle)
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            const newTheme = document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system';
+            setTheme(newTheme);
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => observer.disconnect();
+    }, []);
+
     const themeOptions: { value: 'light' | 'dark' | 'system'; label: string; Icon: typeof Sun }[] = [
         { value: 'light', label: 'Light', Icon: Sun },
         { value: 'dark', label: 'Dark', Icon: Moon },

@@ -155,7 +155,15 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
         }
     };
 
-    // Theme is applied by ChatLayout — do not apply here
+    // Sync theme state with data-theme attribute when it changes (e.g., via theme toggle)
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            const newTheme = document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system';
+            setTheme(newTheme);
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => observer.disconnect();
+    }, []);
 
     const selectedProvider = providers.find(p => p.value === provider) || providers[0];
 
