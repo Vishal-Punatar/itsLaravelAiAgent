@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, Trash2, Edit, ChevronRight, Shield, User, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
+import UserEditForm from './UserEdit';
 
 interface UserData {
     id: number;
@@ -25,6 +26,8 @@ interface Toast {
 export default function AdminUsers({ users, flash }: AdminUsersProps) {
     const [userList, setUserList] = useState(users);
     const [toasts, setToasts] = useState<Toast[]>([]);
+    const [editingUser, setEditingUser] = useState<UserData | null>(null);
+    const [editToast, setEditToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     // Show flash toast from server-side session flash (survives one page load, gone on refresh)
     useEffect(() => {
@@ -163,9 +166,12 @@ export default function AdminUsers({ users, flash }: AdminUsersProps) {
                                     <td className="px-4 py-3 text-sm text-[#888]">{formatDate(user.created_at)}</td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center justify-end gap-2">
-                                            <a href={`/admin/users/${user.id}/edit`} className="p-1.5 rounded-lg hover:bg-[rgba(102,126,234,0.15)] text-[#888] hover:text-white transition-colors">
+                                                                    <button
+                                                onClick={() => setEditingUser(user)}
+                                                className="p-1.5 rounded-lg hover:bg-[rgba(102,126,234,0.15)] text-[#888] hover:text-white transition-colors"
+                                            >
                                                 <Edit className="w-4 h-4" />
-                                            </a>
+                                            </button>
                                             {!user.is_admin && (
                                                 <button
                                                     onClick={() => handleDelete(user.id, user.name)}
@@ -182,6 +188,42 @@ export default function AdminUsers({ users, flash }: AdminUsersProps) {
                     </table>
                 </div>
             </div>
+
+            {/* Edit User Modal */}
+            {editingUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setEditingUser(null)}
+                    />
+
+                    <UserEditForm
+                        user={editingUser}
+                        onSave={(updated) => {
+                            setUserList(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u));
+                            setEditingUser(null);
+                            setEditToast({ type: 'success', message: `"${updated.name}" updated successfully.` });
+                            setTimeout(() => setEditToast(null), 4000);
+                        }}
+                        onCancel={() => setEditingUser(null)}
+                    />
+                </div>
+            )}
+
+            {/* Toast — rendered outside the modal so it survives after modal closes */}
+            {editToast && (
+                <div
+                    className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm ${
+                        editToast.type === 'success'
+                            ? 'bg-green-500/15 border-green-500/30 text-green-400'
+                            : 'bg-red-500/15 border-red-500/30 text-red-400'
+                    }`}
+                >
+                    {editToast.type === 'success' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
+                    <span>{editToast.message}</span>
+                </div>
+            )}
         </div>
     );
 }

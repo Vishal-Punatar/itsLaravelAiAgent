@@ -1,4 +1,4 @@
-import { Bot, ChevronDown, ArrowLeft } from 'lucide-react';
+import { Bot, ArrowLeft } from 'lucide-react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
 
 interface Model {
@@ -50,7 +50,7 @@ export default function AdminModels({ models }: AdminModelsProps) {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             {/* Models List */}
                             <div className="p-2 max-h-[200px] overflow-y-auto">
                                 {Object.entries(provider.models).map(([modelKey, modelName]) => (

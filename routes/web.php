@@ -62,5 +62,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/users/{id}', [AdminController::class, 'updateUser'])->name('users.update');
     Route::delete('/users/{id}', [AdminController::class, 'destroyUser'])->name('users.delete');
     Route::get('/models', [AdminController::class, 'models'])->name('models');
+    Route::post('/models/{id}/set-default', [AdminController::class, 'setDefaultProvider'])->name('models.setDefault');
+    Route::get('/providers', [AdminController::class, 'providers'])->name('providers');
+    Route::put('/providers/{id}', [AdminController::class, 'updateProvider'])->name('providers.update');
+    Route::post('/providers/{id}/set-default', [AdminController::class, 'setDefaultProvider'])->name('providers.setDefault');
+    Route::post('/providers/default/remove', [AdminController::class, 'removeDefaultProvider'])->name('providers.removeDefault');
     Route::get('/settings', [AdminController::class, 'allSettings'])->name('settings');
 });

@@ -3,6 +3,7 @@
 namespace App\Ai\Agents;
 
 use App\Models\AiAgent;
+use App\Models\AiProvider;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use Illuminate\Contracts\Routing\Response;
@@ -126,6 +127,14 @@ class ChatAgent implements Agent, Conversational
     {
         $provider = $this->aiAgent->provider;
         $apiKey = $this->aiAgent->decrypted_api_key;
+
+        // If user's agent has no API key, fall back to admin's default provider
+        if (empty($apiKey)) {
+            $adminDefault = AiProvider::getDefault();
+            if ($adminDefault && $adminDefault->decrypted_api_key) {
+                $apiKey = $adminDefault->decrypted_api_key;
+            }
+        }
 
         // Map our provider names to config keys
         $configKey = match ($provider) {

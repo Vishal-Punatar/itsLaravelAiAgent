@@ -154,6 +154,13 @@ interface ChatLayoutProps {
     };
     children: React.ReactNode;
     theme: 'light' | 'dark' | 'system';
+    adminDefaultProvider?: {
+        key: string;
+        label: string;
+        has_api_key: boolean;
+        default_model: string;
+    } | null;
+    userHasAgents?: boolean;
 }
 
 export default function ChatLayout({
@@ -162,7 +169,9 @@ export default function ChatLayout({
     currentChat,
     user,
     children,
-    theme: themeProp
+    theme: themeProp,
+    adminDefaultProvider,
+    userHasAgents,
 }: ChatLayoutProps) {
     // Safety check - ensure user has a default structure
        const safeUser = user ?? { is_admin: false, theme: 'system' };
@@ -729,23 +738,78 @@ export default function ChatLayout({
 }
 
 // Agent Selector Component
+interface AgentSelectorProps {
+    agents: Agent[];
+    selectedAgent: Agent | null;
+    onSelectAgent: (agent: Agent) => void;
+    isOpen: boolean;
+    onToggle: () => void;
+    theme?: 'light' | 'dark' | 'system';
+    adminDefaultProvider?: {
+        key: string;
+        label: string;
+        has_api_key: boolean;
+        default_model: string;
+    } | null;
+    userHasAgents?: boolean;
+}
+
 export function AgentSelector({
     agents,
     selectedAgent,
     onSelectAgent,
     isOpen,
     onToggle,
-    theme: selectorTheme
-}: {
-    agents: Agent[];
-    selectedAgent: Agent;
-    onSelectAgent: (agent: Agent) => void;
-    isOpen: boolean;
-    onToggle: () => void;
-    theme?: 'light' | 'dark' | 'system';
-}) {
+    theme: selectorTheme,
+    adminDefaultProvider,
+    userHasAgents,
+}: AgentSelectorProps) {
     const safeAgents = agents ?? [];
     const themeVal = selectorTheme ?? 'system';
+
+    // Build the admin default agent object from provider data
+    const adminDefaultAgent: Agent | null = adminDefaultProvider ? {
+        id: -1,
+        name: adminDefaultProvider.label,
+        provider: adminDefaultProvider.key,
+        is_default: false,
+        has_api_key: adminDefaultProvider.has_api_key,
+        is_admin_default: true,
+    } : null;
+
+    // User's own agents (exclude the virtual admin default agent, id=-1)
+    const userAgents = safeAgents.filter(a => a.id !== -1);
+    // Show admin default as a separate group when:
+    // 1. User has agents AND admin default exists (always show it as second option)
+    // 2. User has no agents (it appears in the first/only group via safeAgents)
+    const showAdminDefaultAsSecondGroup = adminDefaultAgent && userHasAgents && userAgents.length > 0;
+
+    const renderAgentButton = (agent: Agent) => (
+        <button
+            key={agent.id}
+            onClick={() => onSelectAgent(agent)}
+            className={`
+                flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg
+                text-xs transition-all duration-150
+                ${selectedAgent?.id === agent.id
+                    ? themeVal === 'light' ? 'bg-[rgba(102,126,234,0.2)] text-gray-700 font-semibold' : 'bg-[rgba(102,126,234,0.15)] text-[var(--text-primary)] font-semibold'
+                    : themeVal === 'light' ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-800' : 'text-[var(--text-secondary)] hover:bg-[var(--border-color)] hover:text-[var(--text-primary)]'}
+            `}
+        >
+            <div className={`w-6 h-6 rounded-md bg-gradient-to-r ${getProviderGradient(agent.provider)} flex items-center justify-center flex-shrink-0`}>
+                <ProviderIcon provider={agent.provider} size={14} color="#ffffff" />
+            </div>
+            <span className="flex-1 truncate text-left">{agent.name}</span>
+            {selectedAgent?.id === agent.id && <Check className="w-3.5 h-3.5 text-[#667eea] flex-shrink-0" />}
+        </button>
+    );
+
+    const renderGroupLabel = (text: string) => (
+        <div className={`px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider ${themeVal === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
+            {text}
+        </div>
+    );
+
     return (
         <div className="relative flex-shrink-0" ref={undefined}>
             <button
@@ -759,43 +823,53 @@ export function AgentSelector({
                 `}
                 style={{ width: '180px', height: '44px', boxSizing: 'border-box' }}
             >
-                <div className={`w-7 h-7 rounded-lg bg-gradient-to-r ${getProviderGradient(selectedAgent.provider)} flex items-center justify-center flex-shrink-0`}>
-                    <ProviderIcon provider={selectedAgent.provider} size={16} color="#ffffff" />
+                <div className={`w-7 h-7 rounded-lg bg-gradient-to-r ${getProviderGradient(selectedAgent?.provider ?? 'openai')} flex items-center justify-center flex-shrink-0`}>
+                    <ProviderIcon provider={selectedAgent?.provider ?? 'openai'} size={16} color="#ffffff" />
                 </div>
-                <span className={`flex-1 truncate text-left font-medium text-xs ${themeVal === 'light' ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`} title={selectedAgent.name}>
-                    {selectedAgent.name}
+                <span className={`flex-1 truncate text-left font-medium text-xs ${themeVal === 'light' ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`} title={selectedAgent?.name}>
+                    {selectedAgent?.name ?? 'Select agent'}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} ${themeVal === 'light' ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`} />
             </button>
 
             {/* Dropdown */}
             <div className={`
-                absolute bottom-full left-0 mb-2 w-full
+                absolute bottom-full left-0 mb-2 w-72
                 ${themeVal === 'light' ? 'theme-bg-glass backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl' : 'bg-[var(--bg-secondary)] backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl'}
                 overflow-hidden z-50 shadow-xl
                 transition-all duration-200 origin-bottom
                 ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2 pointer-events-none'}
             `}>
                 <div className="p-1.5">
-                    {safeAgents.map((agent) => (
-                        <button
-                            key={agent.id}
-                            onClick={() => onSelectAgent(agent)}
-                            className={`
-                                flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg
-                                text-xs transition-all duration-150
-                                ${selectedAgent.id === agent.id 
-    ? themeVal === 'light' ? 'bg-[rgba(102,126,234,0.2)] text-gray-700 font-semibold' : 'bg-[rgba(102,126,234,0.15)] text-[var(--text-primary)] font-semibold' 
-    : themeVal === 'light' ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-800' : 'text-[var(--text-secondary)] hover:bg-[var(--border-color)] hover:text-[var(--text-primary)]'}
-                            `}
-                        >
-                            <div className={`w-6 h-6 rounded-md bg-gradient-to-r ${getProviderGradient(agent.provider)} flex items-center justify-center flex-shrink-0`}>
-                                <ProviderIcon provider={agent.provider} size={14} color="#ffffff" />
-                            </div>
-                            <span className="flex-1 truncate text-left">{agent.name}</span>
-                            {selectedAgent.id === agent.id && <Check className="w-3.5 h-3.5 text-[#667eea] flex-shrink-0" />}
-                        </button>
-                    ))}
+                    {/* User's own agents */}
+                    {userAgents.length > 0 && (
+                        <>
+                            {renderGroupLabel('Your AI Agents')}
+                            {userAgents.map(renderAgentButton)}
+                        </>
+                    )}
+
+                    {/* Admin default — separate section */}
+                    {showAdminDefaultAsSecondGroup && (
+                        <>
+                            {userAgents.length > 0 && renderGroupLabel("ThinkChat's Default")}
+                            {renderAgentButton({
+                                id: -1,
+                                name: adminDefaultProvider!.label,
+                                provider: adminDefaultProvider!.key,
+                                is_default: false,
+                                has_api_key: adminDefaultProvider!.has_api_key,
+                                is_admin_default: true,
+                            })}
+                        </>
+                    )}
+
+                    {/* No agents at all */}
+                    {safeAgents.length === 0 && !adminDefaultAgent && (
+                        <div className={`px-2.5 py-4 text-xs text-center ${themeVal === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
+                            No agents configured
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

@@ -152,7 +152,7 @@ class AiAgent extends Model
                     'claude-3-haiku-latest' => 'Claude 3 Haiku',
                 ],
             ],
-            'google' => [
+            'gemini' => [
                 'label' => 'Google Gemini',
                 'models' => [
                     'gemini-2.5-flash' => 'Gemini 2.5 Flash',
@@ -259,7 +259,7 @@ class AiAgent extends Model
         return match ($provider) {
             'openai' => 'https://api.openai.com/v1/chat/completions',
             'anthropic' => 'https://api.anthropic.com/v1/messages',
-            'google' => 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+            'gemini' => 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
             'azure' => 'https://{your-resource}.openai.azure.com/openai/deployments/{model}/chat/completions?api-version=2024-02-01',
             'bedrock' => 'https://bedrock.{region}.amazonaws.com',
             'groq' => 'https://api.groq.com/openai/v1/chat/completions',

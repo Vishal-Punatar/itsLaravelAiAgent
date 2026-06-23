@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Ai\Agents\ChatAgent;
 use App\Models\AiAgent;
+use App\Models\AiProvider;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +23,21 @@ class ChatService
     ): string {
         if (!$aiAgent) {
             $aiAgent = $this->getDefaultAgent($chat->user_id);
+        }
+
+        // If user has no agents, fall back to admin's default provider
+        if (!$aiAgent) {
+            $adminDefault = AiProvider::getDefault();
+            if ($adminDefault) {
+                $aiAgent = new AiAgent();
+                $aiAgent->forceFill([
+                    'provider' => $adminDefault->key,
+                    'model' => $adminDefault->effective_model,
+                    'api_key' => null,
+                    'is_default' => true,
+                    'user_id' => $chat->user_id,
+                ]);
+            }
         }
 
         if (!$aiAgent) {

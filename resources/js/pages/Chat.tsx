@@ -7,6 +7,15 @@ interface Agent {
     name: string;
     provider: string;
     is_default: boolean;
+    has_api_key?: boolean;
+    is_admin_default?: boolean;
+}
+
+interface AdminDefaultProvider {
+    key: string;
+    label: string;
+    has_api_key: boolean;
+    default_model: string;
 }
 
 interface Attachment {
@@ -40,9 +49,11 @@ interface ChatPageProps {
         is_admin: boolean;
         theme?: 'light' | 'dark' | 'system';
     };
+    userHasAgents?: boolean;
+    adminDefaultProvider?: AdminDefaultProvider | null;
 }
 
-export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
+export default function ChatPage({ agents, chats, chat, user, userHasAgents, adminDefaultProvider }: ChatPageProps) {
     const [message, setMessage] = useState('');
     const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
     const [selectedAgent, setSelectedAgent] = useState<Agent | null>(
@@ -184,7 +195,9 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
             const formData = new FormData();
             formData.append('_token', csrfToken);
             formData.append('message', userMessage.message);
-            formData.append('agent_id', String(selectedAgent.id));
+            // If using admin default (id=-1), send null so backend uses its fallback logic
+            const agentIdToSend = selectedAgent?.is_admin_default ? '' : String(selectedAgent?.id);
+            formData.append('agent_id', agentIdToSend);
             
             // Add attachments
             attachments.forEach((file, index) => {
@@ -279,14 +292,17 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
 
     // Theme is applied synchronously by ChatLayout — no MutationObserver needed
 
-    // Check if user has any agents configured
-    const hasAgents = agents.length > 0;
+    // When user has no agents, they're shown the admin default — use that as selected
+    const effectiveHasAgents = userHasAgents !== undefined ? userHasAgents : agents.length > 0;
+
+    // Show the admin default info when user has no agents
+    const usingAdminDefault = !effectiveHasAgents && adminDefaultProvider;
 
     // One single unified section: chat + agent selector + chat input
     const combinedArea = (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {chatContent}
-            {hasAgents ? (
+            {effectiveHasAgents ? (
                 <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-row items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[900px]">
                     <AgentSelector
                         agents={agents}
@@ -295,6 +311,8 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
                         isOpen={agentDropdownOpen}
                         onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
                         theme={theme}
+                        adminDefaultProvider={adminDefaultProvider}
+                        userHasAgents={effectiveHasAgents}
                     />
                     <ChatInput
                         value={message}
@@ -308,18 +326,43 @@ export default function ChatPage({ agents, chats, chat, user }: ChatPageProps) {
                     />
                 </div>
             ) : (
-                <div className={`flex items-center justify-center py-3 px-4 rounded-xl mx-3 sm:mx-4 mb-3 sm:mb-4 ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
-                    <div className="text-center">
-                        <p className="text-sm">⚠️ No AI Provider Configured</p>
-                        <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
+                usingAdminDefault ? (
+                    <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-row items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[900px]">
+                        <AgentSelector
+                            agents={agents}
+                            selectedAgent={selectedAgent}
+                            onSelectAgent={handleAgentSelect}
+                            isOpen={agentDropdownOpen}
+                            onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
+                            theme={theme}
+                            adminDefaultProvider={adminDefaultProvider}
+                            userHasAgents={effectiveHasAgents}
+                        />
+                        <ChatInput
+                            value={message}
+                            onChange={setMessage}
+                            onSubmit={handleSubmit}
+                            disabled={isSubmitting || !selectedAgent}
+                            theme={theme}
+                            attachments={attachments}
+                            onAttach={handleAttach}
+                            onRemoveAttachment={handleRemoveAttachment}
+                        />
                     </div>
-                </div>
+                ) : (
+                    <div className={`flex items-center justify-center py-3 px-4 rounded-xl mx-3 sm:mx-4 mb-3 sm:mb-4 ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
+                        <div className="text-center">
+                            <p className="text-sm">⚠️ No AI Provider Configured</p>
+                            <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
+                        </div>
+                    </div>
+                )
             )}
         </div>
     );
 
     return (
-        <ChatLayout agents={agents} chats={chats} currentChat={chat} user={user}>
+        <ChatLayout agents={agents} chats={chats} currentChat={chat} user={user} adminDefaultProvider={adminDefaultProvider} userHasAgents={userHasAgents}>
             {combinedArea}
             {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
         </ChatLayout>
