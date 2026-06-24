@@ -2,6 +2,31 @@ import { useState, useEffect, useRef } from 'react';
 import { Bot, Sparkles, Zap, MessageSquare } from 'lucide-react';
 import ChatLayout, { AgentSelector, ChatInput, MessageBubble, TypingIndicator, Lightbox } from '@/components/ChatLayout';
 
+// Hook to get current theme-aware logo
+function useThemeLogo() {
+    const [themeLogo, setThemeLogo] = useState('/build/assets/logo-brand.png');
+    useEffect(() => {
+        const updateLogo = () => {
+            const theme = document.documentElement.getAttribute('data-theme');
+            if (theme === 'light') {
+                setThemeLogo('/build/assets/logo-brand-light.png');
+            } else {
+                setThemeLogo('/build/assets/logo-brand.png');
+            }
+        };
+        updateLogo();
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        mediaQuery.addEventListener('change', updateLogo);
+        const observer = new MutationObserver(updateLogo);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => {
+            mediaQuery.removeEventListener('change', updateLogo);
+            observer.disconnect();
+        };
+    }, []);
+    return themeLogo;
+}
+
 interface Agent {
     id: number;
     name: string;
@@ -54,6 +79,7 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ agents, chats, chat, user, userHasAgents, adminDefaultProvider }: ChatPageProps) {
+    const themeLogo = useThemeLogo();
     const [message, setMessage] = useState('');
     const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
     const [selectedAgent, setSelectedAgent] = useState<Agent | null>(
@@ -226,9 +252,7 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
             {localMessages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center">
                     {/* Welcome Icon */}
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center mb-5 shadow-lg shadow-[rgba(102,126,234,0.35)]">
-                        <Bot className="w-8 h-8 text-white" />
-                    </div>
+                    <img src={themeLogo} alt="ThinkChat" className="w-16 h-16 rounded-2xl object-cover mb-5 shadow-lg shadow-[rgba(102,126,234,0.35)]" />
                     
                     {/* Welcome Text */}
                     <h2 className={`text-xl font-bold mb-2 ${theme === 'light' ? 'text-gray-800' : 'text-white'}`}>

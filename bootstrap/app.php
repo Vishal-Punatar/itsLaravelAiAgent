@@ -4,8 +4,12 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use App\Http\Middleware\ApiKeyAuth;
 use App\Http\Middleware\AdminMiddleware;
+
+// Redirect authenticated users away from guest routes to /chat instead of /
+RedirectIfAuthenticated::redirectUsing(fn () => '/chat');
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(

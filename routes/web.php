@@ -8,11 +8,11 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\InertiaChatController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn() => redirect('/login'));
-
 Route::middleware('guest')->group(function () {
+    Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login']);
     Route::get('/register', [RegisterController::class, 'showRegistrationForm']);
@@ -20,8 +20,6 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/', fn() => redirect('/chat'));
-
     // Chat routes - GET requests use Inertia (React), POST/DELETE use ChatController
     Route::get('/chat', [InertiaChatController::class, 'index'])->name('chat.index');
     Route::get('/chat/{id}', [InertiaChatController::class, 'show'])->name('chat.show');

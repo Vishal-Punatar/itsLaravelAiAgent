@@ -8,13 +8,17 @@ use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class RegisterController extends Controller
 {
-    public function showRegistrationForm()
+    public function showRegistrationForm(Request $request)
     {
-        return view('register');
+        return Inertia::render('Auth/Register', [
+            'errors' => $request->session()->get('errors')
+                ? (object) $request->session()->get('errors')->toArray()
+                : (object) [],
+        ]);
     }
 
     public function register(Request $request)
@@ -34,7 +38,7 @@ class RegisterController extends Controller
             'is_admin' => $isFirstUser,
         ]);
 
-        // Auto-create an AI agent using the admin's default provider
+        // Auto-create an AI agent using the default provider
         $defaultProvider = AiProvider::getDefault();
         if ($defaultProvider) {
             $defaultModel = $this->defaultModelFor($defaultProvider->key);
@@ -47,10 +51,9 @@ class RegisterController extends Controller
             ]);
         }
 
-        // Auto-login after registration
         auth()->login($user);
 
-        return redirect()->intended('/chat');
+        return redirect('/chat');
     }
 
     private function defaultModelFor(string $provider): string

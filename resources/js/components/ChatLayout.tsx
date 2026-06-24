@@ -1,7 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip } from 'lucide-react';
 import { useMemo } from 'react';
+import { router } from '@inertiajs/react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
+
+// Hook to get current theme-aware logo
+function useThemeLogo() {
+    const [themeLogo, setThemeLogo] = useState('/build/assets/logo-brand.png');
+    useEffect(() => {
+        const updateLogo = () => {
+            const theme = document.documentElement.getAttribute('data-theme');
+            if (theme === 'light') {
+                setThemeLogo('/build/assets/logo-brand-light.png');
+            } else {
+                setThemeLogo('/build/assets/logo-brand.png');
+            }
+        };
+        updateLogo();
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        mediaQuery.addEventListener('change', updateLogo);
+        const observer = new MutationObserver(updateLogo);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => {
+            mediaQuery.removeEventListener('change', updateLogo);
+            observer.disconnect();
+        };
+    }, []);
+    return themeLogo;
+}
 
 // Format message content with proper list handling
 function formatMessage(text: string): React.ReactNode[] {
@@ -173,6 +199,7 @@ export default function ChatLayout({
     adminDefaultProvider,
     userHasAgents,
 }: ChatLayoutProps) {
+    const themeLogo = useThemeLogo();
     // Safety check - ensure user has a default structure
        const safeUser = user ?? { is_admin: false, theme: 'system' };
     // Use passed theme prop, falling back to user's saved theme or system preference
@@ -245,13 +272,8 @@ export default function ChatLayout({
     };
 
     const handleLogout = (e: React.FormEvent<HTMLFormElement>) => {
-        const form = e.currentTarget;
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = '_token';
-        input.value = csrfToken;
-        form.appendChild(input);
+        e.preventDefault();
+        router.post('/logout', {}, { replace: true });
     };
 
     const handleTogglePin = async (e: React.MouseEvent, chatId: number, isPinned: boolean) => {
@@ -433,9 +455,7 @@ export default function ChatLayout({
                 <div className={`flex flex-col ${theme === 'light' ? 'border-gray-200' : 'border-[rgba(102,126,234,0.1)]'}`}>
                     {/* Brand */}
                     <div className="flex items-center gap-2 px-3 py-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center flex-shrink-0 shadow-md shadow-[rgba(102,126,234,0.3)]">
-                            <Bot className="w-4 h-4 text-white" />
-                        </div>
+                        <img src={themeLogo} alt="ThinkChat" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 shadow-md shadow-[rgba(102,126,234,0.3)]" />
                         <div className="flex flex-col min-w-0 flex-1">
                             <span className="text-sm font-bold theme-text-primary">ThinkChat</span>
                             <span className="text-[9px] theme-text-muted truncate">Where ideas meet instant answers</span>
@@ -642,9 +662,7 @@ export default function ChatLayout({
                         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors lg:hidden">
                             <Menu className="w-5 h-5" />
                         </button>
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center shadow-md shadow-[rgba(102,126,234,0.3)]">
-                            <Bot className="w-5 h-5 text-[var(--text-primary)]" />
-                        </div>
+                        
 
                         <div className="flex flex-col min-w-0">
                             <h1 className={`text-sm sm:text-base font-semibold theme-text-primary leading-tight truncate max-w-[150px] sm:max-w-[300px]`}>{currentChat?.title || 'ThinkChat'}</h1>

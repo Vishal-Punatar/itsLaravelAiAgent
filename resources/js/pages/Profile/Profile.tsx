@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sun, Moon, Monitor, LogOut, Eye, EyeOff } from 'lucide-react';
 import ChatLayout from '@/components/ChatLayout';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 
 interface Agent {
     id: number;
@@ -109,12 +109,9 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
         }
     };
 
-    const handleLogout = async (e: React.FormEvent) => {
+    const handleLogout = (e: React.FormEvent) => {
         e.preventDefault();
-        try {
-            const response = await fetch('/logout', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } });
-            if (response.ok) window.location.href = '/login';
-        } catch (error) { window.location.href = '/login'; }
+        router.post('/logout', {}, { replace: true });
     };
 
     // Sync theme state with data-theme attribute when it changes (e.g., via theme toggle)

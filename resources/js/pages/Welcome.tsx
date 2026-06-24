@@ -1,60 +1,222 @@
-import { Button } from '@/components/ui/button';
-
-export default function Welcome({ name = 'User' }: { name?: string }) {
+import { Head, Link } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import { Bot, MessageSquare, Zap, Shield, Star, ArrowRight, CheckCircle2, Layers, Globe } from 'lucide-react';
+const heroFeatures = [
+    { icon: Bot, label: 'AI Agents', color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
+    { icon: MessageSquare, label: 'Real-time Chat', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    { icon: Layers, label: 'Multi-Provider', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+    { icon: Shield, label: 'Secure & Private', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+];
+const features = [
+    {
+        icon: Bot,
+        title: 'AI Agents',
+        description: 'Build and deploy multiple AI agents tailored to your needs. Each agent can have its own personality, instructions, and AI provider.',
+        gradient: 'from-violet-500 to-purple-600',
+        glow: 'rgba(139, 92, 246, 0.15)',
+    },
+    {
+        icon: MessageSquare,
+        title: 'Conversations',
+        description: 'Engage in rich, persistent conversations. Save, rename, and pin your most important chats for quick access anytime.',
+        gradient: 'from-emerald-500 to-teal-600',
+        glow: 'rgba(16, 185, 129, 0.15)',
+    },
+    {
+        icon: Layers,
+        title: 'Multi-Provider',
+        description: 'Connect OpenAI, Anthropic, Google Gemini, and more. Switch between providers or let ThinkChat pick the best model for your task.',
+        gradient: 'from-blue-500 to-cyan-600',
+        glow: 'rgba(59, 130, 246, 0.15)',
+    },
+    {
+        icon: Globe,
+        title: 'Access Anywhere',
+        description: 'ThinkChat is fully responsive. Chat with your AI agents from desktop, tablet, or mobile — anywhere, anytime.',
+        gradient: 'from-rose-500 to-pink-600',
+        glow: 'rgba(236, 72, 153, 0.15)',
+    },
+];
+const steps = [
+    { number: '01', title: 'Create your account', description: 'Sign up in seconds. No credit card required, no complicated setup.' },
+    { number: '02', title: 'Connect an AI provider', description: 'Link your OpenAI, Anthropic, or other API key. ThinkChat supports all major providers.' },
+    { number: '03', title: 'Start chatting', description: 'Create agents, pick a model, and start having meaningful AI conversations instantly.' },
+];
+export default function Welcome() {
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        const timer = setTimeout(() => setMounted(true), 100);
+        return () => clearTimeout(timer);
+    }, []);
     return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
-            <div className="max-w-2xl w-full text-center space-y-8">
-                {/* Logo and Title */}
-                <div className="space-y-4">
-                    <div className="text-6xl">🤖</div>
-                    <h1 className="text-4xl font-bold text-foreground">
-                        Welcome to ThinkChat
-                    </h1>
-                    <p className="text-lg text-muted-foreground">
-                        Where ideas meet instant answers.
-                    </p>
+        <>
+            <Head title="Welcome to ThinkChat" />
+            <div className="min-h-screen bg-[#09090b] text-[var(--text-primary)] overflow-x-hidden">
+                {/* Ambient background glows */}
+                <div className="fixed inset-0 pointer-events-none">
+                    <div className="absolute top-[-20%] left-[10%] w-[600px] h-[600px] rounded-full bg-violet-600/10 blur-[120px]" />
+                    <div className="absolute bottom-[-10%] right-[10%] w-[500px] h-[500px] rounded-full bg-blue-600/8 blur-[120px]" />
                 </div>
-
-                {/* Feature Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
-                    <div className="p-6 rounded-lg border border-border bg-card">
-                        <div className="text-2xl mb-2">⚡</div>
-                        <h3 className="font-semibold text-foreground mb-1">Fast & Modern</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Built with React 19, Inertia, and Tailwind CSS v4
+                {/* Navbar */}
+                <nav className="relative z-10 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-xl">
+                    <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <img src="/build/assets/logo-brand.png" alt="ThinkChat" className="w-12 h-12 rounded-xl object-cover shadow-lg shadow-violet-500/20" />
+                            <div className="flex flex-col">
+                                <span className="text-lg font-bold text-white leading-none">ThinkChat</span>
+                                <span className="text-[10px] text-violet-400 font-medium leading-none mt-0.5">Where ideas meet instant answers</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Link href="/login" className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all">
+                                Sign In
+                            </Link>
+                            <Link href="/register" className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 transition-all">
+                                Get Started
+                            </Link>
+                        </div>
+                    </div>
+                </nav>
+                {/* Hero */}
+                <section className="relative z-10 max-w-6xl mx-auto px-6 pt-20 pb-24">
+                    <div className={`text-center transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 mb-8">
+                            <Zap className="w-3.5 h-3.5 text-violet-400" />
+                            <span className="text-xs font-medium text-violet-300">The modern AI chat platform</span>
+                        </div>
+                        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white leading-[1.1] tracking-tight mb-6">
+                            Chat with AI,
+                            <br />
+                            <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
+                                Built for Humans
+                            </span>
+                        </h1>
+                        <p className="text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed mb-10">
+                            ThinkChat gives you powerful AI agents, multi-provider support, and a beautiful
+                            chat experience — all in one place. No fluff, just conversations that matter.
+                        </p>
+                        {/* CTA */}
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+                            <Link href="/register" className="flex items-center gap-2 px-8 py-4 rounded-2xl font-semibold text-white bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 hover:shadow-lg hover:shadow-violet-500/20 transition-all duration-200">
+                                Start Free — No Card Needed
+                                <ArrowRight className="w-4 h-4" />
+                            </Link>
+                            <Link href="/login" className="flex items-center gap-2 px-8 py-4 rounded-2xl text-sm font-medium text-zinc-400 border border-white/10 hover:bg-white/5 hover:text-white transition-all">
+                                Sign in to your account
+                            </Link>
+                        </div>
+                        <div className="flex items-center justify-center gap-6 text-xs text-zinc-500">
+                            <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Free to start</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>5-minute setup</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Your data stays private</span>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Hero feature pills */}
+                    <div className={`flex flex-wrap items-center justify-center gap-3 mt-16 transition-all duration-1000 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                        {heroFeatures.map((f, i) => {
+                            const Icon = f.icon;
+                            return (
+                                <div key={i} className={`flex items-center gap-2 px-4 py-2 rounded-full ${f.bg} border ${f.border} backdrop-blur-sm`}>
+                                    <Icon className={`w-4 h-4 ${f.color}`} />
+                                    <span className="text-xs font-medium text-zinc-300">{f.label}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+                {/* Divider */}
+                <div className="relative z-10 max-w-6xl mx-auto px-6">
+                    <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                </div>
+                {/* How it works */}
+                <section className="relative z-10 max-w-6xl mx-auto px-6 py-20">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-white mb-3">Get started in minutes</h2>
+                        <p className="text-zinc-400 text-sm">Three simple steps to your first AI conversation</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {steps.map((step, i) => (
+                            <div key={i} className="relative p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-all group">
+                                <div className="text-5xl font-black text-white/5 mb-4 group-hover:text-violet-500/10 transition-colors">{step.number}</div>
+                                <h3 className="text-base font-semibold text-white mb-2">{step.title}</h3>
+                                <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+                {/* Divider */}
+                <div className="relative z-10 max-w-6xl mx-auto px-6">
+                    <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                </div>
+                {/* Features */}
+                <section className="relative z-10 max-w-6xl mx-auto px-6 py-20">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-white mb-3">Everything you need for AI conversations</h2>
+                        <p className="text-zinc-400 text-sm">Powerful features, beautifully designed</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {features.map((feature, i) => {
+                            const Icon = feature.icon;
+                            return (
+                                <div key={i} className="group relative p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all overflow-hidden">
+                                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `radial-gradient(circle at 50% 0%, ${feature.glow}, transparent 70%)` }} />
+                                    <div className="relative">
+                                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-5 shadow-lg`}>
+                                            <Icon className="w-6 h-6 text-white" />
+                                        </div>
+                                        <h3 className="text-base font-semibold text-white mb-2">{feature.title}</h3>
+                                        <p className="text-sm text-zinc-400 leading-relaxed">{feature.description}</p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+                {/* Divider */}
+                <div className="relative z-10 max-w-6xl mx-auto px-6">
+                    <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                </div>
+                {/* Final CTA */}
+                <section className="relative z-10 max-w-6xl mx-auto px-6 py-24">
+                    <div className="relative text-center p-12 rounded-3xl overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 to-purple-600/10" />
+                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.15),transparent_70%)]" />
+                        <div className="absolute inset-0 border border-violet-500/20 rounded-3xl" />
+                        <div className="relative">
+                            <div className="flex items-center justify-center gap-1 mb-4">
+                                <Star className="w-5 h-5 text-violet-400" />
+                                <Star className="w-5 h-5 text-violet-400" />
+                                <Star className="w-5 h-5 text-violet-400" />
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Ready to meet your AI agents?</h2>
+                            <p className="text-zinc-400 text-sm mb-8 max-w-md mx-auto">
+                                Join ThinkChat today and start having conversations that actually help. It takes less than 5 minutes to get started.
+                            </p>
+                            <Link href="/register" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-semibold text-white bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 hover:shadow-lg hover:shadow-violet-500/20 transition-all duration-200">
+                                Create Free Account
+                                <ArrowRight className="w-4 h-4" />
+                            </Link>
+                        </div>
+                    </div>
+                </section>
+                {/* Footer */}
+                <footer className="relative z-10 border-t border-white/5">
+                    <div className="max-w-6xl mx-auto px-6 py-8">
+                        <p className="text-xs text-zinc-500 text-center">
+                            &copy; {new Date().getFullYear()} ThinkChat. Powered by Laravel, React & Inertia.
                         </p>
                     </div>
-                    <div className="p-6 rounded-lg border border-border bg-card">
-                        <div className="text-2xl mb-2">🎨</div>
-                        <h3 className="font-semibold text-foreground mb-1">Beautiful UI</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Styled with shadcn/ui components and design system
-                        </p>
-                    </div>
-                    <div className="p-6 rounded-lg border border-border bg-card">
-                        <div className="text-2xl mb-2">🔗</div>
-                        <h3 className="font-semibold text-foreground mb-1">AI Agents</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Support for multiple AI providers and agents
-                        </p>
-                    </div>
-                </div>
-
-                {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                        Get Started
-                    </Button>
-                    <Button size="lg" variant="outline" className="border-input hover:bg-accent hover:text-accent-foreground">
-                        Learn More
-                    </Button>
-                </div>
-
-                {/* Version Info */}
-                <div className="text-sm text-muted-foreground pt-8">
-                    <p>Powered by Laravel 13 + React 19 + Inertia + shadcn/ui</p>
-                </div>
+                </footer>
             </div>
-        </div>
+        </>
     );
 }
