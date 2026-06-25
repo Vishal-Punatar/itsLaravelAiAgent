@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AiModelsController;
 use App\Http\Controllers\AiAgentController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -66,4 +67,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/providers/{id}/set-default', [AdminController::class, 'setDefaultProvider'])->name('providers.setDefault');
     Route::post('/providers/default/remove', [AdminController::class, 'removeDefaultProvider'])->name('providers.removeDefault');
     Route::get('/settings', [AdminController::class, 'allSettings'])->name('settings');
+
+    // AI Models Sync
+    Route::get('/ai-models', [AiModelsController::class, 'index'])->name('ai-models.index');
+    Route::get('/ai-models/api', [AiModelsController::class, 'apiIndex']);
+    Route::get('/ai-models/api/{provider}/preview', [AiModelsController::class, 'preview']);
+    Route::post('/ai-models/api/{provider}/sync', [AiModelsController::class, 'sync']);
 });

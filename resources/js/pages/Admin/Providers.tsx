@@ -336,6 +336,10 @@ export default function AdminProviders({ providers: initialProviders, models }: 
                                             </button>
                                         )}
                                     </div>
+                                    <p className="text-xs text-[#888]">
+                                        <span className="text-blue-400 font-medium">Note:</span> To sync the latest models,{' '}
+                                        <a href="/admin/ai-models" className="text-[#667eea] hover:text-white underline">go to Model Sync</a>.
+                                    </p>
                                     <select
                                         value={editProvider.default_model || ''}
                                         onChange={(e) => setEditProvider({ ...editProvider, default_model: e.target.value })}

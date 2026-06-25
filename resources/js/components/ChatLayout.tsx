@@ -6,14 +6,14 @@ import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
 
 // Hook to get current theme-aware logo
 function useThemeLogo() {
-    const [themeLogo, setThemeLogo] = useState('/build/assets/logo-brand.png');
+    const [themeLogo, setThemeLogo] = useState('/img/logo-brand.png');
     useEffect(() => {
         const updateLogo = () => {
             const theme = document.documentElement.getAttribute('data-theme');
             if (theme === 'light') {
-                setThemeLogo('/build/assets/logo-brand-light.png');
+                setThemeLogo('/img/logo-brand-light.png');
             } else {
-                setThemeLogo('/build/assets/logo-brand.png');
+                setThemeLogo('/img/logo-brand.png');
             }
         };
         updateLogo();
@@ -206,7 +206,21 @@ export default function ChatLayout({
     const [theme, setTheme] = useState(themeProp ?? safeUser?.theme ?? 'system');
     // Ensure agents and chats are always arrays to prevent undefined errors
     const safeAgents = agents ?? [];
-    const safeChats = chats ?? [];
+    // Sort chats: pinned first (sorted by pinned_order), then by created_at descending
+    const sortedChats = [...(chats ?? [])].sort((a, b) => {
+        // Pinned chats first
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        // If both pinned, sort by pinned_order (lower = higher priority)
+        if (a.is_pinned && b.is_pinned) {
+            const orderA = a.pinned_order ?? 999;
+            const orderB = b.pinned_order ?? 999;
+            if (orderA !== orderB) return orderA - orderB;
+        }
+        // Otherwise sort by created_at descending (newest first)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    const safeChats = sortedChats;
     
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarMinimized, setSidebarMinimized] = useState(false);

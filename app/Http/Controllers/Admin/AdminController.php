@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AiAgent;
+use App\Models\AiProviderModel;
 use App\Models\AiProvider;
 use App\Models\Chat;
 use App\Models\ChatMessage;
@@ -109,13 +110,32 @@ class AdminController extends Controller
 
     public function models()
     {
-        $models = AiAgent::allowedModels();
+        $providers = AiAgent::allowedModels();
+        $dbModels = AiProviderModel::all()->groupBy('provider_key');
 
         $cleanModels = [];
-        foreach ($models as $key => $provider) {
+        foreach ($providers as $key => $provider) {
+            $dbProviderModels = $dbModels->get($key, collect());
+
+            if ($dbProviderModels->isEmpty()) {
+                continue;
+            }
+
+            $modelList = [];
+            foreach ($dbProviderModels as $m) {
+                $modelList[$m->model_id] = [
+                    'label' => $m->model_label,
+                    'status' => $m->status,
+                ];
+            }
+
+            $dbProvider = AiProvider::where('key', $key)->active()->first();
+            $hasApiKey = $dbProvider && !empty($dbProvider->decrypted_api_key);
+
             $cleanModels[$key] = [
                 'label' => $provider['label'],
-                'models' => $provider['models'],
+                'models' => $modelList,
+                'has_api_key' => $hasApiKey,
             ];
         }
 
@@ -123,10 +143,12 @@ class AdminController extends Controller
             'models' => $cleanModels,
         ]);
     }
-
     public function providers()
     {
-        $models = AiAgent::allowedModels();
+        $dbModels = AiProviderModel::where('is_supported', true)
+            ->where('status', 'active')
+            ->get()
+            ->groupBy('provider_key');
 
         $providers = AiProvider::orderBy('key')->get()->map(fn ($p) => [
             'id' => $p->id,
@@ -140,17 +162,21 @@ class AdminController extends Controller
 
         return Inertia::render('Admin/Providers', [
             'providers' => $providers,
-            'models' => $this->buildModelsList($models),
+            'models' => $this->buildModelsListFromDb($dbModels),
         ]);
     }
 
-    private function buildModelsList(array $models): array
+    private function buildModelsListFromDb($dbModels): array
     {
         $clean = [];
-        foreach ($models as $key => $provider) {
-            $clean[$key] = [
-                'label' => $provider['label'],
-                'models' => $provider['models'],
+        foreach ($dbModels as $providerKey => $models) {
+            $modelList = [];
+            foreach ($models as $model) {
+                $modelList[$model->model_id] = $model->model_label;
+            }
+            $clean[$providerKey] = [
+                'label' => ucfirst($providerKey),
+                'models' => $modelList,
             ];
         }
         return $clean;

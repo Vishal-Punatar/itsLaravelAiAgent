@@ -4,14 +4,14 @@ import { ArrowRight, XCircle } from 'lucide-react';
 
 // Hook to get current theme-aware logo
 function useThemeLogo() {
-    const [themeLogo, setThemeLogo] = useState('/build/assets/logo-brand.png');
+    const [themeLogo, setThemeLogo] = useState('/img/logo-brand.png');
     useEffect(() => {
         const updateLogo = () => {
             const theme = document.documentElement.getAttribute('data-theme');
             if (theme === 'light') {
-                setThemeLogo('/build/assets/logo-brand-light.png');
+                setThemeLogo('/img/logo-brand-light.png');
             } else {
-                setThemeLogo('/build/assets/logo-brand.png');
+                setThemeLogo('/img/logo-brand.png');
             }
         };
         updateLogo();
@@ -57,7 +57,7 @@ export default function Register({ errors = {} }: RegisterProps) {
 
                 <div className="relative w-full max-w-sm">
                     <div className="text-center mb-8">
-                        <div class="flex items-center justify-center mb-2"><img src="/build/assets/logo-brand.png" alt="ThinkChat" className="w-24 h-24 rounded-2xl object-cover mb-2 shadow-lg shadow-violet-500/20" /></div>
+                        <div class="flex items-center justify-center mb-2"><img src={themeLogo} alt="ThinkChat" className="w-24 h-24 rounded-2xl object-cover mb-2 shadow-lg shadow-violet-500/20" /></div>
                         <h1 className="text-2xl font-bold" style={{ color: 'var(--theme-text-primary, #e0e0e0)' }}>Create your account</h1>
                         <p className="text-sm mt-1" style={{ color: 'var(--theme-text-muted, #888888)' }}>Join ThinkChat and start chatting with AI</p>
                     </div>

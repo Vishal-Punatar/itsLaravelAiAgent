@@ -4,14 +4,14 @@ import { ArrowRight, XCircle } from 'lucide-react';
 
 // Hook to get current theme-aware logo
 function useThemeLogo() {
-    const [themeLogo, setThemeLogo] = useState('/build/assets/logo-brand.png');
+    const [themeLogo, setThemeLogo] = useState('/img/logo-brand.png');
     useEffect(() => {
         const updateLogo = () => {
             const theme = document.documentElement.getAttribute('data-theme');
             if (theme === 'light') {
-                setThemeLogo('/build/assets/logo-brand-light.png');
+                setThemeLogo('/img/logo-brand-light.png');
             } else {
-                setThemeLogo('/build/assets/logo-brand.png');
+                setThemeLogo('/img/logo-brand.png');
             }
         };
         updateLogo();

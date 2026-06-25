@@ -12,6 +12,7 @@ import {
     Zap,
     Activity,
     TrendingUp,
+    RefreshCw,
 } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 
@@ -85,6 +86,14 @@ const navItems = [
         icon: Waves,
         gradient: 'from-blue-500 to-cyan-600',
         accent: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+    },
+    {
+        label: 'Model Sync',
+        description: 'Sync provider models with API',
+        href: '/admin/ai-models',
+        icon: RefreshCw,
+        gradient: 'from-purple-500 to-fuchsia-600',
+        accent: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
     },
     {
         label: 'Agent Settings',
