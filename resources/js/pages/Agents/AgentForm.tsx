@@ -8,7 +8,6 @@ interface Agent {
     id: number;
     name: string;
     provider: string;
-    model: string | null;
     is_default: boolean;
 }
 
@@ -54,7 +53,6 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
     const [name, setName] = useState(agent?.name ?? '');
     const [provider, setProvider] = useState(agent?.provider ?? 'openai');
     const [apiKey, setApiKey] = useState('');
-    const [model, setModel] = useState(agent?.model ?? '');
     const [isDefault, setIsDefault] = useState(agent?.is_default ?? false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState(false);
@@ -94,7 +92,6 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
         body.set('name', name);
         body.set('provider', provider);
         if (apiKey) body.set('api_key', apiKey);
-        if (model) body.set('model', model);
         body.set('is_default', isDefault ? '1' : '0');
 
         try {
@@ -285,28 +282,6 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                                 {errors.api_key && <p className="text-red-500 text-xs mt-1">{errors.api_key}</p>}
                             </div>
 
-                            {/* Model */}
-                            <div>
-                                <label className={`block text-sm font-medium mb-2 ${theme === 'light' ? 'text-gray-700' : 'text-[var(--text-secondary)]'}`}>
-                                    Model
-                                </label>
-                                <input
-                                    type="text"
-                                    value={model}
-                                    onChange={(e) => setModel(e.target.value)}
-                                    placeholder={getModelPlaceholder(provider)}
-                                    className={`w-full px-4 py-2.5 rounded-xl border-2 transition-colors focus:outline-none focus:border-[#667eea] ${
-                                        theme === 'light'
-                                            ? 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'
-                                            : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
-                                    } ${errors.model ? 'border-red-500' : ''}`}
-                                />
-                                <p className={`text-xs mt-1 ${theme === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
-                                    {getModelHint(provider)}
-                                </p>
-                                {errors.model && <p className="text-red-500 text-xs mt-1">{errors.model}</p>}
-                            </div>
-
                             {/* Default Checkbox */}
                             <div className={`flex items-center gap-3 p-3 rounded-xl ${theme === 'light' ? 'bg-gray-50' : 'bg-[var(--bg-tertiary)]'}`}>
                                 <input
@@ -350,31 +325,4 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
             </div>
         </ChatLayout>
     );
-}
-
-function getModelPlaceholder(provider: string): string {
-    const placeholders: Record<string, string> = {
-        openai: 'e.g., gpt-4o, gpt-4o-mini, gpt-3.5-turbo',
-        anthropic: 'e.g., claude-sonnet-4-20250514, claude-3-5-sonnet-latest',
-        google: 'e.g., gemini-2.0-flash, gemini-pro',
-        gemini: 'e.g., gemini-2.0-flash, gemini-pro',
-        groq: 'e.g., llama-3.3-70b-versatile, mixtral-8x7b-32768',
-        xai: 'e.g., grok-2, grok-2-mini',
-        deepseek: 'e.g., deepseek-chat, deepseek-coder',
-        mistral: 'e.g., mistral-large-latest, mistral-small-latest',
-        azure: 'e.g., gpt-4o, gpt-4o-mini',
-        bedrock: 'e.g., anthropic.claude-3-5-sonnet-20241022-v2:0',
-        ollama: 'e.g., llama3.2, mistral, codellama',
-        openrouter: 'e.g., openai/gpt-4o, anthropic/claude-3.5-sonnet',
-    };
-    return placeholders[provider] || 'Provider-specific model identifier';
-}
-
-function getModelHint(provider: string): string {
-    const hints: Record<string, string> = {
-        openai: 'Specify the OpenAI model to use. Defaults vary by provider.',
-        anthropic: 'Claude models available through Anthropic API.',
-        openrouter: 'Format: provider/model-name (e.g., openai/gpt-4o)',
-    };
-    return hints[provider] || '';
 }

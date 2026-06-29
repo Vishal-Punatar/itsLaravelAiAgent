@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
-use App\Http\Controllers\Admin\AiModelsController;
+use App\Http\Controllers\Api\AgentLiveModelsController;
 use App\Http\Controllers\AiAgentController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -46,6 +46,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/ai-agents/{aiAgent}/set-default', [AiAgentController::class, 'setDefault'])->name('ai-agents.setDefault');
     Route::get('/ai-agents/list', [AiAgentController::class, 'list'])->name('ai-agents.list');
 
+    // Chat UI runtime: live model list for the Model Selector dropdown.
+    // {agent} may be an integer agent ID (real, owned by user) or -1 for admin default.
+    // Pure runtime fetch — no DB persistence of the returned list.
+    Route::get('/api/agents/{agent}/live-models', [AgentLiveModelsController::class, 'show'])
+        ->name('api.agents.liveModels');
+
     // Attachment serving route
     Route::get('/attachment/{userId}/{filename}', [AttachmentController::class, 'show'])->name('attachment.show');
 
@@ -60,17 +66,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/users/{id}/edit', [AdminController::class, 'editUser'])->name('users.edit');
     Route::put('/users/{id}', [AdminController::class, 'updateUser'])->name('users.update');
     Route::delete('/users/{id}', [AdminController::class, 'destroyUser'])->name('users.delete');
-    Route::get('/models', [AdminController::class, 'models'])->name('models');
-    Route::post('/models/{id}/set-default', [AdminController::class, 'setDefaultProvider'])->name('models.setDefault');
     Route::get('/providers', [AdminController::class, 'providers'])->name('providers');
+    Route::post('/providers', [AdminController::class, 'storeProvider'])->name('providers.store');
     Route::put('/providers/{id}', [AdminController::class, 'updateProvider'])->name('providers.update');
     Route::post('/providers/{id}/set-default', [AdminController::class, 'setDefaultProvider'])->name('providers.setDefault');
+    Route::post('/providers/{id}/toggle-active', [AdminController::class, 'toggleProviderActive'])->name('providers.toggleActive');
     Route::post('/providers/default/remove', [AdminController::class, 'removeDefaultProvider'])->name('providers.removeDefault');
     Route::get('/settings', [AdminController::class, 'allSettings'])->name('settings');
-
-    // AI Models Sync
-    Route::get('/ai-models', [AiModelsController::class, 'index'])->name('ai-models.index');
-    Route::get('/ai-models/api', [AiModelsController::class, 'apiIndex']);
-    Route::get('/ai-models/api/{provider}/preview', [AiModelsController::class, 'preview']);
-    Route::post('/ai-models/api/{provider}/sync', [AiModelsController::class, 'sync']);
 });

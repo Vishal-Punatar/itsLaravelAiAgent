@@ -3,7 +3,7 @@
 namespace App\Ai\Agents;
 
 use App\Models\AiAgent;
-use App\Models\AiProvider;
+use App\Models\AdminAiAgent;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use Illuminate\Contracts\Routing\Response;
@@ -95,7 +95,7 @@ class ChatAgent implements Agent, Conversational
         }
 
         $providerEnum = $provider ? Lab::from($provider) : Lab::from($this->aiAgent->provider);
-        $model = $model ?? $this->aiAgent->effective_model;
+        $model = $model ?? AiAgent::defaultModelForProvider($this->aiAgent->provider);
 
         $files = !empty($files) ? $files : [];
 
@@ -130,7 +130,7 @@ class ChatAgent implements Agent, Conversational
 
         // If user's agent has no API key, fall back to admin's default provider
         if (empty($apiKey)) {
-            $adminDefault = AiProvider::getDefault();
+            $adminDefault = AdminAiAgent::getDefault();
             if ($adminDefault && $adminDefault->decrypted_api_key) {
                 $apiKey = $adminDefault->decrypted_api_key;
             }
@@ -156,5 +156,45 @@ class ChatAgent implements Agent, Conversational
 
         // Clear cached provider instance so the new API key is used
         app(AiManager::class)->forgetInstance($provider);
+    }
+
+    /**
+     * Generate an image using the configured provider.
+     */
+    public function generateImage(string $prompt, ?string $model = null, string $size = '1024x1024', string $quality = 'high'): \Laravel\Ai\Responses\ImageResponse
+    {
+        $this->setApiKeyInConfig();
+
+        $model = $model ?? AiAgent::defaultImageModelForProvider($this->aiAgent->provider);
+
+        if (!$model) {
+            throw new \Exception("No image model configured for provider: {$this->aiAgent->provider}");
+        }
+
+        // Map size to provider-specific format
+        $mappedSize = $size;
+        $mappedQuality = $quality;
+        
+        if ($this->aiAgent->provider === 'gemini') {
+            // Gemini uses aspect_ratio and image_size
+            // Map common sizes to aspect ratios
+            $mappedSize = match ($size) {
+                '1024x1024' => '1:1',
+                '1024x1792', '896x1792' => '2:3',
+                '1792x1024', '1792x896' => '3:2',
+                default => '1:1',
+            };
+            // Map quality to image_size
+            $mappedQuality = match ($quality) {
+                'low' => '1K',
+                'medium' => '2K',
+                'high' => '4K',
+                default => '2K',
+            };
+        }
+
+        $ai = app(\Laravel\Ai\AiManager::class)->imageProvider($this->aiAgent->provider);
+
+        return $ai->image($prompt, [], $mappedSize, $mappedQuality, $model);
     }
 }

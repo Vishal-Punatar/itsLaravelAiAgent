@@ -4,8 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AiAgent;
-use App\Models\AiProviderModel;
-use App\Models\AiProvider;
+use App\Models\AdminAiAgent;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\User;
@@ -35,8 +34,8 @@ class AdminController extends Controller
             ->distinct('user_id')
             ->count('user_id');
 
-        // Default AI provider
-        $defaultProvider = AiProvider::where('is_default', true)->first();
+        // Default admin AI agent
+        $defaultAdmin = AdminAiAgent::where('is_default', true)->first();
 
         $stats = [
             'total_users' => User::count(),
@@ -48,10 +47,11 @@ class AdminController extends Controller
                 'name' => $topAgent->name,
                 'message_count' => (int) $topAgent->message_count,
             ] : null,
-            'default_provider' => $defaultProvider ? [
-                'name' => $defaultProvider->label,
-                'model' => $defaultProvider->default_model,
-                'is_active' => $defaultProvider->is_active,
+            'default_provider' => $defaultAdmin ? [
+                'name' => $defaultAdmin->name,
+                'provider' => $defaultAdmin->provider,
+                'is_active' => $defaultAdmin->is_active,
+                'has_api_key' => !empty($defaultAdmin->api_key),
             ] : null,
         ];
 
@@ -108,87 +108,66 @@ class AdminController extends Controller
         return response()->json(['success' => true, 'message' => 'User deleted successfully.']);
     }
 
-    public function models()
-    {
-        $providers = AiAgent::allowedModels();
-        $dbModels = AiProviderModel::all()->groupBy('provider_key');
-
-        $cleanModels = [];
-        foreach ($providers as $key => $provider) {
-            $dbProviderModels = $dbModels->get($key, collect());
-
-            if ($dbProviderModels->isEmpty()) {
-                continue;
-            }
-
-            $modelList = [];
-            foreach ($dbProviderModels as $m) {
-                $modelList[$m->model_id] = [
-                    'label' => $m->model_label,
-                    'status' => $m->status,
-                ];
-            }
-
-            $dbProvider = AiProvider::where('key', $key)->active()->first();
-            $hasApiKey = $dbProvider && !empty($dbProvider->decrypted_api_key);
-
-            $cleanModels[$key] = [
-                'label' => $provider['label'],
-                'models' => $modelList,
-                'has_api_key' => $hasApiKey,
-            ];
-        }
-
-        return Inertia::render('Admin/Models', [
-            'models' => $cleanModels,
-        ]);
-    }
     public function providers()
     {
-        $dbModels = AiProviderModel::where('is_supported', true)
-            ->where('status', 'active')
-            ->get()
-            ->groupBy('provider_key');
+        // Get all supported providers from laravel-ai-sdk
+        $availableProviders = [
+            'openai' => ['label' => 'OpenAI', 'has_image' => true],
+            'gemini' => ['label' => 'Gemini', 'has_image' => true],
+            'anthropic' => ['label' => 'Anthropic', 'has_image' => false],
+            'openrouter' => ['label' => 'OpenRouter', 'has_image' => true],
+            'xai' => ['label' => 'xAI', 'has_image' => true],
+            'groq' => ['label' => 'Groq', 'has_image' => false],
+            'deepseek' => ['label' => 'DeepSeek', 'has_image' => false],
+            'mistral' => ['label' => 'Mistral', 'has_image' => false],
+            'ollama' => ['label' => 'Ollama', 'has_image' => false],
+            'azure' => ['label' => 'Azure OpenAI', 'has_image' => true],
+            'bedrock' => ['label' => 'AWS Bedrock', 'has_image' => true],
+        ];
 
-        $providers = AiProvider::orderBy('key')->get()->map(fn ($p) => [
-            'id' => $p->id,
-            'key' => $p->key,
-            'label' => $p->label,
-            'api_key' => $p->decrypted_api_key,
-            'is_default' => $p->is_default,
-            'is_active' => $p->is_active,
-            'default_model' => $p->default_model,
-        ]);
+        // Get providers saved in database
+        $dbProviders = AdminAiAgent::orderBy('provider')->get()->keyBy('provider');
+
+        // Build final list - merge available providers with database config
+        $providers = collect($availableProviders)->map(function ($info, $key) use ($dbProviders) {
+            $dbProvider = $dbProviders->get($key);
+            return [
+                'id' => $dbProvider?->id,
+                'provider' => $key,
+                'name' => $dbProvider?->name ?? $info['label'],
+                'api_key' => $dbProvider?->decrypted_api_key ?? null,
+                'is_default' => $dbProvider?->is_default ?? false,
+                'is_active' => $dbProvider?->is_active ?? true,
+                'is_configured' => $dbProvider !== null,
+            ];
+        })->values();
+
+        // Also include any custom providers in DB that aren't in our list
+        $customDbProviders = $dbProviders->filter(fn ($p) => !isset($availableProviders[$p->provider]));
+        if ($customDbProviders->isNotEmpty()) {
+            $custom = $customDbProviders->map(fn ($p) => [
+                'id' => $p->id,
+                'provider' => $p->provider,
+                'name' => $p->name,
+                'api_key' => $p->decrypted_api_key,
+                'is_default' => $p->is_default,
+                'is_active' => $p->is_active,
+                'is_configured' => true,
+            ])->values()->toArray();
+            $providers = $providers->merge($custom);
+        }
 
         return Inertia::render('Admin/Providers', [
             'providers' => $providers,
-            'models' => $this->buildModelsListFromDb($dbModels),
         ]);
-    }
-
-    private function buildModelsListFromDb($dbModels): array
-    {
-        $clean = [];
-        foreach ($dbModels as $providerKey => $models) {
-            $modelList = [];
-            foreach ($models as $model) {
-                $modelList[$model->model_id] = $model->model_label;
-            }
-            $clean[$providerKey] = [
-                'label' => ucfirst($providerKey),
-                'models' => $modelList,
-            ];
-        }
-        return $clean;
     }
 
     public function updateProvider(Request $request, $id)
     {
-        $provider = AiProvider::findOrFail($id);
+        $provider = AdminAiAgent::findOrFail($id);
 
         $validated = $request->validate([
             'api_key' => 'nullable|string',
-            'default_model' => 'nullable|string',
             'is_active' => 'boolean',
         ]);
 
@@ -198,16 +177,51 @@ class AdminController extends Controller
             $provider->api_key = encrypt($validated['api_key']);
         }
 
-        $provider->default_model = $validated['default_model'] ?? null;
         $provider->is_active = $validated['is_active'] ?? $provider->is_active;
         $provider->save();
 
-        return response()->json(['success' => true, 'message' => $provider->label . ' updated successfully.']);
+        return response()->json(['success' => true, 'message' => $provider->name . ' updated successfully.']);
+    }
+
+
+    public function storeProvider(Request $request)
+    {
+        $validated = $request->validate([
+            'provider' => 'required|string|unique:admin_ai_agents,provider',
+            'name' => 'required|string',
+            'api_key' => 'nullable|string',
+            'is_active' => 'boolean',
+        ]);
+
+        $provider = new AdminAiAgent();
+        $provider->provider = $validated['provider'];
+        $provider->name = $validated['name'];
+
+        if (!empty($validated['api_key'])) {
+            $provider->api_key = encrypt($validated['api_key']);
+        }
+
+        $provider->is_active = $validated['is_active'] ?? true;
+        $provider->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => $provider->name . ' created successfully.',
+            'provider' => [
+                'id' => $provider->id,
+                'provider' => $provider->provider,
+                'name' => $provider->name,
+                'api_key' => $provider->decrypted_api_key,
+                'is_default' => $provider->is_default,
+                'is_active' => $provider->is_active,
+                'is_configured' => true,
+            ],
+        ]);
     }
 
     public function setDefaultProvider(Request $request, $id)
     {
-        $provider = AiProvider::findOrFail($id);
+        $provider = AdminAiAgent::findOrFail($id);
 
         if (!$provider->is_active) {
             return response()->json(['success' => false, 'message' => 'Activate this provider first.'], 422);
@@ -215,12 +229,35 @@ class AdminController extends Controller
 
         $provider->setAsDefault();
 
-        return response()->json(['success' => true, 'message' => $provider->label . ' is now the default provider.']);
+        return response()->json(['success' => true, 'message' => $provider->name . ' is now the default provider.']);
+    }
+
+    public function toggleProviderActive(Request $request, $id)
+    {
+        $provider = AdminAiAgent::findOrFail($id);
+
+        // Guard: don't allow deactivating the default provider — user would lose
+        // their fallback for new users without their own API key.
+        if ($provider->is_default && $provider->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Remove the default designation before deactivating.',
+            ], 422);
+        }
+
+        $provider->is_active = !$provider->is_active;
+        $provider->save();
+
+        return response()->json([
+            'success' => true,
+            'is_active' => $provider->is_active,
+            'message' => $provider->name . ($provider->is_active ? ' activated.' : ' deactivated.'),
+        ]);
     }
 
     public function removeDefaultProvider()
     {
-        $provider = AiProvider::where('is_default', true)->first();
+        $provider = AdminAiAgent::where('is_default', true)->first();
 
         if (!$provider) {
             return response()->json(['success' => false, 'message' => 'No default provider to remove.'], 422);
@@ -229,7 +266,7 @@ class AdminController extends Controller
         $provider->is_default = false;
         $provider->save();
 
-        return response()->json(['success' => true, 'message' => $provider->label . ' is no longer the default provider.']);
+        return response()->json(['success' => true, 'message' => $provider->name . ' is no longer the default provider.']);
     }
 
     public function allSettings()

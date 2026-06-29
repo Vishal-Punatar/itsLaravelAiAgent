@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('name'); // User-defined name like "Gemini for Images"
             $table->string('provider'); // openai, gemini, etc.
             $table->text('api_key'); // Encrypted API key
-            $table->string('model')->nullable(); // Optional specific model
             $table->boolean('is_default')->default(false);
             $table->timestamps();
  });

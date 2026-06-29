@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bot, Sparkles, Zap, MessageSquare } from 'lucide-react';
-import ChatLayout, { AgentSelector, ChatInput, MessageBubble, TypingIndicator, Lightbox } from '@/components/ChatLayout';
+import ChatLayout, { AgentSelector, ModelSelector, ChatInput, MessageBubble, TypingIndicator, Lightbox } from '@/components/ChatLayout';
 
 // Hook to get current theme-aware logo
 function useThemeLogo() {
@@ -37,10 +37,9 @@ interface Agent {
 }
 
 interface AdminDefaultProvider {
-    key: string;
-    label: string;
+    provider: string;
+    name: string;
     has_api_key: boolean;
-    default_model: string;
 }
 
 interface Attachment {
@@ -82,9 +81,22 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     const themeLogo = useThemeLogo();
     const [message, setMessage] = useState('');
     const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+    // Initialize selected agent - prefer user's default agent, then admin default, else null
+    const initialAgent = agents.find(a => a.is_default) || agents[0] || null;
+    const adminDefaultAgent: Agent | null = adminDefaultProvider ? {
+        id: -1,
+        name: adminDefaultProvider.name,
+        provider: adminDefaultProvider.provider,
+        is_default: false,
+        has_api_key: adminDefaultProvider.has_api_key,
+        is_admin_default: true,
+    } : null;
     const [selectedAgent, setSelectedAgent] = useState<Agent | null>(
-        agents.find(a => a.is_default) || agents[0] || null
+        initialAgent || adminDefaultAgent || null
     );
+    // Runtime-only model selection. NEVER persisted — ModelSelector will populate
+    // this via onSelectModel when an agent is chosen (server returns its preferred).
+    const [selectedModel, setSelectedModel] = useState<string>('');
     const [localMessages, setLocalMessages] = useState<Message[]>(chat?.messages || []);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showTyping, setShowTyping] = useState(false);
@@ -113,15 +125,17 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     const messagesContainerRef = useRef<HTMLDivElement>(null);
 
     // Close agent dropdown when clicking outside
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (agentDropdownOpen && agentSelectorRef.current && !agentSelectorRef.current.contains(event.target as Node)) {
-                setAgentDropdownOpen(false);
-            }
+    const handleClickOutside = (event: MouseEvent) => {
+        if (!agentDropdownOpen) return;
+        if (agentSelectorRef.current && !agentSelectorRef.current.contains(event.target as Node)) {
+            setAgentDropdownOpen(false);
         }
+    };
+    
+    useEffect(() => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [agentDropdownOpen]);
+    }, [handleClickOutside]);
 
     useEffect(() => {
         if (chat?.messages) {
@@ -178,6 +192,9 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
 
     const handleAgentSelect = (agent: Agent) => {
         setSelectedAgent(agent);
+        // Clearing model — ModelSelector will repopulate it once the new agent's
+        // live model list is fetched. Prevents using the previous agent's model.
+        setSelectedModel('');
         setAgentDropdownOpen(false);
     };
 
@@ -191,6 +208,11 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
 
     const handleSubmit = async () => {
         if ((!message.trim() && attachments.length === 0) || isSubmitting || !selectedAgent) return;
+        // Block submit if no model is selected yet (in-flight fetch / fetch failed).
+        if (!selectedModel) {
+            console.warn('Submit blocked: no model selected yet');
+            return;
+        }
 
 
         // Build attachment data with object URLs for immediate preview
@@ -222,9 +244,12 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
             formData.append('_token', csrfToken);
             formData.append('message', userMessage.message);
             // If using admin default (id=-1), send null so backend uses its fallback logic
+            console.log('DEBUG submit', { selectedAgent, selectedModel, isAdminDefault: selectedAgent?.is_admin_default, agentIdToSend: selectedAgent?.is_admin_default ? '' : String(selectedAgent?.id) });
             const agentIdToSend = selectedAgent?.is_admin_default ? '' : String(selectedAgent?.id);
             formData.append('agent_id', agentIdToSend);
-            
+            // Runtime-only model selection — NEVER persisted on ai_agents.
+            formData.append('model_id', selectedModel);
+
             // Add attachments
             attachments.forEach((file, index) => {
                 formData.append(`attachments[${index}]`, file);
@@ -248,7 +273,7 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     };
 
     const chatContent = (
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 pt-6 flex flex-col gap-4 theme-bg-app">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pt-2 pb-2 sm:pt-4 sm:pb-4 md:pt-6 md:pb-6 flex flex-col gap-4 theme-bg-app">
             {localMessages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center">
                     {/* Welcome Icon */}
@@ -324,10 +349,10 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
 
     // One single unified section: chat + agent selector + chat input
     const combinedArea = (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0">
             {chatContent}
             {effectiveHasAgents ? (
-                <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-row items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[900px]">
+                <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-row items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[1100px]">
                     <AgentSelector
                         agents={agents}
                         selectedAgent={selectedAgent}
@@ -338,11 +363,17 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
                         adminDefaultProvider={adminDefaultProvider}
                         userHasAgents={effectiveHasAgents}
                     />
+                    <ModelSelector
+                        selectedAgent={selectedAgent}
+                        selectedModel={selectedModel}
+                        onSelectModel={setSelectedModel}
+                        theme={theme}
+                    />
                     <ChatInput
                         value={message}
                         onChange={setMessage}
                         onSubmit={handleSubmit}
-                        disabled={isSubmitting || !selectedAgent}
+                        disabled={isSubmitting || !selectedAgent || !selectedModel}
                         theme={theme}
                         attachments={attachments}
                         onAttach={handleAttach}
@@ -362,11 +393,17 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
                             adminDefaultProvider={adminDefaultProvider}
                             userHasAgents={effectiveHasAgents}
                         />
+                        <ModelSelector
+                            selectedAgent={selectedAgent}
+                            selectedModel={selectedModel}
+                            onSelectModel={setSelectedModel}
+                            theme={theme}
+                        />
                         <ChatInput
                             value={message}
                             onChange={setMessage}
                             onSubmit={handleSubmit}
-                            disabled={isSubmitting || !selectedAgent}
+                            disabled={isSubmitting || !selectedAgent || !selectedModel}
                             theme={theme}
                             attachments={attachments}
                             onAttach={handleAttach}

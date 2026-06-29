@@ -8,7 +8,6 @@ interface Agent {
     id: number;
     name: string;
     provider: string;
-    model: string | null;
     is_default: boolean;
 }
 
@@ -160,7 +159,6 @@ export default function AgentsPage({ agents, chats, user }: AgentsPageProps) {
                                                 </div>
                                                 <p className="text-xs truncate theme-text-muted">
                                                     {agent.provider.charAt(0).toUpperCase() + agent.provider.slice(1)}
-                                                    {agent.model && ` • ${agent.model}`}
                                                 </p>
                                             </div>
                                         </div>

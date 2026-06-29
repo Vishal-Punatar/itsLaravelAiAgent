@@ -4,9 +4,17 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class AiProvider extends Model
+class AdminAiAgent extends Model
 {
-    protected $fillable = ['key', 'label', 'api_key', 'is_default', 'is_active', 'default_model'];
+    protected $table = 'admin_ai_agents';
+
+    protected $fillable = [
+        'provider',
+        'name',
+        'api_key',
+        'is_default',
+        'is_active',
+    ];
 
     protected $casts = [
         'is_default' => 'boolean',
@@ -62,17 +70,5 @@ class AiProvider extends Model
         static::where('is_default', true)->update(['is_default' => false]);
         $this->is_default = true;
         $this->save();
-    }
-
-    /**
-     * Get the effective model to use (default_model or first available).
-     */
-    public function getEffectiveModelAttribute(): string
-    {
-        if ($this->default_model) {
-            return $this->default_model;
-        }
-        $allowed = AiAgent::allowedModels()[$this->key] ?? [];
-        return array_key_first($allowed['models'] ?? []) ?? '';
     }
 }

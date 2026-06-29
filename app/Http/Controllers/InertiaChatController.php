@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiAgent;
-use App\Models\AiProvider;
+use App\Models\AdminAiAgent;
 use App\Models\Chat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,7 +32,7 @@ class InertiaChatController extends Controller
                             'id' => $msg->id,
                             'role' => $msg->role,
                             'message' => $msg->message,
-                            'attachments' => $msg->attachments ? json_decode($msg->attachments, true) : null,
+                            'attachments' => $msg->attachments,
                             'created_at' => $msg->created_at->toISOString(),
                         ];
                     })->toArray(),
@@ -55,14 +55,14 @@ class InertiaChatController extends Controller
             ->toArray();
 
         $userHasAgents = count($agents) > 0;
-        $adminDefault = AiProvider::getDefault();
+        $adminDefault = AdminAiAgent::getDefault();
 
         // If user has no agents, create a virtual agent from admin's default provider
         if (!$userHasAgents && $adminDefault) {
             $agents = [[
                 'id' => -1, // Virtual ID — not a real DB record
-                'name' => $adminDefault->label . ' (Admin Default)',
-                'provider' => $adminDefault->key,
+                'name' => $adminDefault->name . ' (Admin Default)',
+                'provider' => $adminDefault->provider,
                 'is_default' => true,
                 'has_api_key' => !empty($adminDefault->decrypted_api_key),
                 'is_admin_default' => true,
@@ -70,10 +70,9 @@ class InertiaChatController extends Controller
         }
 
         $adminDefaultProvider = $adminDefault ? [
-            'key' => $adminDefault->key,
-            'label' => $adminDefault->label,
+            'provider' => $adminDefault->provider,
+            'name' => $adminDefault->name,
             'has_api_key' => !empty($adminDefault->decrypted_api_key),
-            'default_model' => $adminDefault->effective_model,
         ] : null;
 
         return Inertia::render('Chat', [
@@ -120,7 +119,7 @@ class InertiaChatController extends Controller
                             'id' => $msg->id,
                             'role' => $msg->role,
                             'message' => $msg->message,
-                            'attachments' => $msg->attachments ? json_decode($msg->attachments, true) : null,
+                            'attachments' => $msg->attachments,
                             'created_at' => $msg->created_at->toISOString(),
                         ];
                     })->toArray(),
@@ -143,13 +142,13 @@ class InertiaChatController extends Controller
             ->toArray();
 
         $userHasAgents = count($agents) > 0;
-        $adminDefault = AiProvider::getDefault();
+        $adminDefault = AdminAiAgent::getDefault();
 
         if (!$userHasAgents && $adminDefault) {
             $agents = [[
                 'id' => -1,
-                'name' => $adminDefault->label . ' (Admin Default)',
-                'provider' => $adminDefault->key,
+                'name' => $adminDefault->name . ' (Admin Default)',
+                'provider' => $adminDefault->provider,
                 'is_default' => true,
                 'has_api_key' => !empty($adminDefault->decrypted_api_key),
                 'is_admin_default' => true,
@@ -157,10 +156,9 @@ class InertiaChatController extends Controller
         }
 
         $adminDefaultProvider = $adminDefault ? [
-            'key' => $adminDefault->key,
-            'label' => $adminDefault->label,
+            'provider' => $adminDefault->provider,
+            'name' => $adminDefault->name,
             'has_api_key' => !empty($adminDefault->decrypted_api_key),
-            'default_model' => $adminDefault->effective_model,
         ] : null;
 
         $chatData = [
@@ -171,7 +169,7 @@ class InertiaChatController extends Controller
                     'id' => $msg->id,
                     'role' => $msg->role,
                     'message' => $msg->message,
-                    'attachments' => $msg->attachments ? json_decode($msg->attachments, true) : null,
+                    'attachments' => $msg->attachments,
                     'created_at' => $msg->created_at->toISOString(),
                 ];
             })->toArray(),

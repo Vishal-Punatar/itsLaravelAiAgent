@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip } from 'lucide-react';
+import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip, Cpu, AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 import { router } from '@inertiajs/react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
@@ -153,11 +153,24 @@ interface Attachment {
     size: number;
 }
 
+interface GeneratedImage {
+    path: string;
+    prompt: string;
+    model: string;
+    provider: string;
+    generated_at: string;
+}
+
+interface AttachmentWithType {
+    type: 'image';
+    images: GeneratedImage[];
+}
+
 interface Message {
     id?: number;
     role: 'user' | 'assistant';
     message: string;
-    attachments?: Attachment[] | null;
+    attachments?: Attachment[] | AttachmentWithType[] | null;
     created_at?: string;
 }
 
@@ -181,10 +194,9 @@ interface ChatLayoutProps {
     children: React.ReactNode;
     theme: 'light' | 'dark' | 'system';
     adminDefaultProvider?: {
-        key: string;
-        label: string;
+        provider: string;
+        name: string;
         has_api_key: boolean;
-        default_model: string;
     } | null;
     userHasAgents?: boolean;
 }
@@ -458,7 +470,7 @@ export default function ChatLayout({
             <aside className={`
                 relative
                 fixed lg:relative z-50 lg:z-auto
-                w-[280px] h-full
+                w-[280px] h-full min-h-0
                 theme-bg-sidebar
                 transform transition-transform duration-300 ease-out
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -469,11 +481,13 @@ export default function ChatLayout({
                 <div className={`flex flex-col ${theme === 'light' ? 'border-gray-200' : 'border-[rgba(102,126,234,0.1)]'}`}>
                     {/* Brand */}
                     <div className="flex items-center gap-2 px-3 py-2.5">
-                        <img src={themeLogo} alt="ThinkChat" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 shadow-md shadow-[rgba(102,126,234,0.3)]" />
-                        <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-sm font-bold theme-text-primary">ThinkChat</span>
-                            <span className="text-[9px] theme-text-muted truncate">Where ideas meet instant answers</span>
-                        </div>
+                        <a href="/chat" className="flex items-center gap-2 min-w-0 flex-1 rounded-lg hover:opacity-80 transition-opacity" title="Start a new chat">
+                            <img src={themeLogo} alt="ThinkChat" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 shadow-md shadow-[rgba(102,126,234,0.3)]" />
+                            <div className="flex flex-col min-w-0 flex-1">
+                                <span className="text-sm font-bold theme-text-primary">ThinkChat</span>
+                                <span className="text-[9px] theme-text-muted truncate">Where ideas meet instant answers</span>
+                            </div>
+                        </a>
                         {/* Sidebar Minimize Toggle */}
                         <button
                             onClick={() => setSidebarMinimized(!sidebarMinimized)}
@@ -737,7 +751,7 @@ export default function ChatLayout({
                 </header>
 
                 {/* Chat Content */}
-                <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex-1 flex flex-col min-h-0">
                     {children}
                 </div>
             </main>
@@ -778,10 +792,9 @@ interface AgentSelectorProps {
     onToggle: () => void;
     theme?: 'light' | 'dark' | 'system';
     adminDefaultProvider?: {
-        key: string;
-        label: string;
+        provider: string;
+        name: string;
         has_api_key: boolean;
-        default_model: string;
     } | null;
     userHasAgents?: boolean;
 }
@@ -797,13 +810,31 @@ export function AgentSelector({
     userHasAgents,
 }: AgentSelectorProps) {
     const safeAgents = agents ?? [];
+    
+    // Container ref for click-outside detection
+    const containerRef = useRef<HTMLDivElement>(null);
+    
+    // Handle clicks outside the dropdown
+    useEffect(() => {
+        function handleClick(e: MouseEvent) {
+            if (!isOpen) return;
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                onToggle();
+            }
+        }
+        if (isOpen) {
+            // Use mousedown to close before any click event fires
+            document.addEventListener('mousedown', handleClick);
+        }
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [isOpen, onToggle]);
     const themeVal = selectorTheme ?? 'system';
 
     // Build the admin default agent object from provider data
     const adminDefaultAgent: Agent | null = adminDefaultProvider ? {
         id: -1,
-        name: adminDefaultProvider.label,
-        provider: adminDefaultProvider.key,
+        name: adminDefaultProvider.name,
+        provider: adminDefaultProvider.provider,
         is_default: false,
         has_api_key: adminDefaultProvider.has_api_key,
         is_admin_default: true,
@@ -843,8 +874,9 @@ export function AgentSelector({
     );
 
     return (
-        <div className="relative flex-shrink-0" ref={undefined}>
+        <div ref={containerRef} className="relative flex-shrink-0">
             <button
+               
                 onClick={onToggle}
                 className={`
                     flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2
@@ -864,13 +896,13 @@ export function AgentSelector({
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} ${themeVal === 'light' ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`} />
             </button>
 
-            {/* Dropdown */}
+            {/* Dropdown - opens ABOVE the button */}
             <div className={`
                 absolute bottom-full left-0 mb-2 w-72
                 ${themeVal === 'light' ? 'theme-bg-glass backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl' : 'bg-[var(--bg-secondary)] backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl'}
-                overflow-hidden z-50 shadow-xl
+                rounded-xl border shadow-xl
                 transition-all duration-200 origin-bottom
-                ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2 pointer-events-none'}
+                ${isOpen ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95 pointer-events-none'}
             `}>
                 <div className="p-1.5">
                     {/* User's own agents */}
@@ -887,8 +919,8 @@ export function AgentSelector({
                             {userAgents.length > 0 && renderGroupLabel("ThinkChat's Default")}
                             {renderAgentButton({
                                 id: -1,
-                                name: adminDefaultProvider!.label,
-                                provider: adminDefaultProvider!.key,
+                                name: adminDefaultProvider!.name,
+                                provider: adminDefaultProvider!.provider,
                                 is_default: false,
                                 has_api_key: adminDefaultProvider!.has_api_key,
                                 is_admin_default: true,
@@ -896,10 +928,326 @@ export function AgentSelector({
                         </>
                     )}
 
+                    {/* Admin default when user has no agents */}
+                    {safeAgents.length === 0 && adminDefaultAgent && (
+                        <>
+                            {renderGroupLabel("ThinkChat's Default")}
+                            {renderAgentButton(adminDefaultAgent)}
+                        </>
+                    )}
+
                     {/* No agents at all */}
                     {safeAgents.length === 0 && !adminDefaultAgent && (
                         <div className={`px-2.5 py-4 text-xs text-center ${themeVal === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
                             No agents configured
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Model Selector Component
+// Runtime-only model picker. Fetches live model list (or hardcoded fallback) from
+// /api/agents/{id}/live-models whenever the selected agent changes. Auto-selects
+// the "preferred" model returned by the server (provider-specific heuristic).
+// Selection is NEVER persisted — parent owns selectedModel state.
+interface ModelSelectorProps {
+    selectedAgent: Agent | null;
+    selectedModel: string;
+    onSelectModel: (model: string) => void;
+    theme?: 'light' | 'dark' | 'system';
+}
+
+export function ModelSelector({
+    selectedAgent,
+    selectedModel,
+    onSelectModel,
+    theme: selectorTheme,
+}: ModelSelectorProps) {
+    const [models, setModels] = useState<string[]>([]);
+    const [preferred, setPreferred] = useState<string | null>(null);
+    const [source, setSource] = useState<string>('');
+    const [warning, setWarning] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isError, setIsError] = useState<string | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const lastFetchedAgentRef = useRef<string | null>(null);
+
+    const themeVal = selectorTheme ?? 'system';
+
+    // Fetch models whenever selectedAgent changes.
+    // Cancellable: if agent changes mid-flight, drop the stale response.
+    useEffect(() => {
+        if (!selectedAgent) {
+            setModels([]);
+            setPreferred(null);
+            setSource('');
+            setWarning(null);
+            setIsError(null);
+            setIsLoading(false);
+            lastFetchedAgentRef.current = null;
+            return;
+        }
+
+        const agentKey = `${selectedAgent.is_admin_default ? -1 : selectedAgent.id}`;
+
+        // No API key for this agent — show error state, skip fetch.
+        if (selectedAgent.has_api_key === false) {
+            setIsLoading(false);
+            setIsError('No API key configured for this agent.');
+            setModels([]);
+            setPreferred(null);
+            onSelectModel('');
+            return;
+        }
+
+        lastFetchedAgentRef.current = agentKey;
+
+        let cancelled = false;
+        setIsLoading(true);
+        setIsError(null);
+
+        fetch(`/api/agents/${agentKey}/live-models`, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin',
+        })
+            .then(async (r) => {
+                const data = await r.json().catch(() => ({}));
+                if (cancelled) return;
+                if (!r.ok || !data.success) {
+                    setIsError(data.error || `Request failed (${r.status})`);
+                    setModels([]);
+                    setPreferred(null);
+                    onSelectModel('');
+                    return;
+                }
+                const ms = Array.isArray(data.models) ? data.models : [];
+                setModels(ms);
+                setPreferred(data.preferred ?? null);
+                setSource(data.source ?? '');
+                setWarning(data.warning ?? null);
+
+                // Auto-select the server-preferred model (or first available).
+                const pick = data.preferred || ms[0] || '';
+                onSelectModel(pick);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setIsError('Network error: ' + (err?.message || 'unknown'));
+            })
+            .finally(() => {
+                if (!cancelled) setIsLoading(false);
+            });
+
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        selectedAgent?.id ?? null,
+        selectedAgent?.is_admin_default ?? null,
+        selectedAgent?.has_api_key ?? null,
+    ]);
+
+    // Click-outside to close
+    useEffect(() => {
+        if (!isOpen) return;
+        function handle(e: MouseEvent) {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handle);
+        return () => document.removeEventListener('mousedown', handle);
+    }, [isOpen]);
+
+    const disabled = !selectedAgent || (isLoading && models.length === 0);
+
+    const buttonLabel = (() => {
+        if (!selectedAgent) return 'Pick agent first';
+        if (isLoading) return 'Loading…';
+        if (isError) return 'Model error';
+        if (selectedModel) {
+            return selectedModel.length > 22 ? selectedModel.slice(0, 22) + '…' : selectedModel;
+        }
+        if (models.length === 0) return 'No models';
+        return 'Pick model';
+    })();
+
+    const sourceLabel = (() => {
+        switch (source) {
+            case 'live_api': return 'live API';
+            case 'hardcoded': return 'built-in list';
+            case 'no_api_key': return 'no API key';
+            case 'unsupported': return 'unsupported';
+            default: return source || '';
+        }
+    })();
+
+    return (
+        <div ref={containerRef} className="relative flex-shrink-0">
+            {/* Inline scoped styles for the dropdown scrollbar. Webkit-only;
+                Firefox falls back to its native thin scrollbar via scrollbarWidth. */}
+            <style>{`
+                .model-dropdown-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+                .model-dropdown-scroll::-webkit-scrollbar-track { background: transparent; }
+                .model-dropdown-scroll::-webkit-scrollbar-thumb {
+                    background-color: rgba(102, 126, 234, 0.35);
+                    border-radius: 3px;
+                }
+                .model-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+                    background-color: rgba(102, 126, 234, 0.6);
+                }
+            `}</style>
+
+            <button
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
+                aria-label="Model selector"
+                title={selectedModel || 'No model selected'}
+                className={`
+                    flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2
+                    text-sm cursor-pointer
+                    transition-all duration-200
+                    ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                    ${isOpen ? 'border-[#667eea] shadow-lg shadow-[rgba(102,126,234,0.2)]' : ''}
+                    ${themeVal === 'light'
+                        ? 'theme-bg-glass border-[var(--border-color)] hover:border-[#667eea] shadow-sm'
+                        : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[#667eea] shadow-sm'}
+                `}
+                style={{ width: '180px', height: '44px', boxSizing: 'border-box' }}
+            >
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isError
+                        ? 'bg-gradient-to-r from-red-500 to-red-700'
+                        : 'bg-gradient-to-r from-[#667eea] to-[#764ba2]'
+                }`}>
+                    {isError
+                        ? <AlertTriangle className="w-4 h-4 text-white" />
+                        : <Cpu className="w-4 h-4 text-white" />}
+                </div>
+                <span className={`flex-1 truncate text-left font-medium text-xs ${themeVal === 'light' ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`}>
+                    {buttonLabel}
+                </span>
+                {isLoading ? (
+                    <span className="w-3.5 h-3.5 rounded-full border-2 border-[var(--text-muted)] border-t-transparent animate-spin flex-shrink-0" />
+                ) : (
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''} ${themeVal === 'light' ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`} />
+                )}
+            </button>
+
+            {/* Dropdown opens ABOVE the button (same UX as AgentSelector).
+                The list area is height-capped (max-h-72 = 18rem) and scrollable
+                so long model lists (OpenAI typically 50+, Bedrock 40+) stay usable.
+                Header + footer are pinned outside the scroll area. */}
+            <div className={`
+                absolute bottom-full left-0 mb-2 w-80
+                ${themeVal === 'light'
+                    ? 'theme-bg-glass backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl'
+                    : 'bg-[var(--bg-secondary)] backdrop-blur-md border-[var(--border-color)] rounded-xl shadow-xl'}
+                rounded-xl border shadow-xl
+                transition-all duration-200 origin-bottom
+                ${isOpen ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95 pointer-events-none'}
+            `}>
+                <div className="p-1.5 flex flex-col">
+                    {/* Error: pinned above the scroll area (short, fits naturally) */}
+                    {isError && (
+                        <div className="px-2.5 py-3 text-xs text-red-500 flex items-start gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                            <span className="flex-1">{isError}</span>
+                        </div>
+                    )}
+
+                    {/* Scrollable list area. max-h-72 ≈ 288px (~8 buttons visible).
+                        We also clamp to 60vh of viewport for very small screens. */}
+                    {!isError && (
+                        <div
+                            className="max-h-72 overflow-y-auto model-dropdown-scroll"
+                            style={{
+                                maxHeight: 'min(18rem, 60vh)',
+                                scrollbarWidth: 'thin',
+                                scrollbarColor: 'rgba(102,126,234,0.4) transparent',
+                            }}
+                        >
+                            {/* Models list */}
+                            {models.length > 0 && (
+                                <>
+                                    <div className={`px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider sticky top-0 z-[1] ${
+                                        themeVal === 'light'
+                                            ? 'text-gray-400 bg-[var(--bg-glass,rgba(255,255,255,0.85))]'
+                                            : 'text-[var(--text-muted)] bg-[var(--bg-secondary,rgba(26,26,46,0.95))]'
+                                    } backdrop-blur-sm`}>
+                                        Models ({models.length})
+                                    </div>
+                                    {models.map((model) => {
+                                        const isPreferred = model === preferred;
+                                        const isSelected = model === selectedModel;
+                                        return (
+                                            <button
+                                                key={model}
+                                                onClick={() => {
+                                                    onSelectModel(model);
+                                                    setIsOpen(false);
+                                                }}
+                                                className={`
+                                                    flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg
+                                                    text-xs transition-all duration-150
+                                                    ${isSelected
+                                                        ? themeVal === 'light'
+                                                            ? 'bg-[rgba(102,126,234,0.2)] text-gray-700 font-semibold'
+                                                            : 'bg-[rgba(102,126,234,0.15)] text-[var(--text-primary)] font-semibold'
+                                                        : themeVal === 'light'
+                                                            ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                                                            : 'text-[var(--text-secondary)] hover:bg-[var(--border-color)] hover:text-[var(--text-primary)]'}
+                                                `}
+                                            >
+                                                <Cpu className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-[#667eea]' : 'opacity-60'}`} />
+                                                <span className="flex-1 truncate text-left font-mono">{model}</span>
+                                                {isPreferred && (
+                                                    <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                                                        themeVal === 'light'
+                                                            ? 'bg-[rgba(102,126,234,0.15)] text-[#667eea]'
+                                                            : 'bg-[rgba(102,126,234,0.25)] text-[#a5b4fc]'
+                                                    }`}>
+                                                        default
+                                                    </span>
+                                                )}
+                                                {isSelected && <Check className="w-3.5 h-3.5 text-[#667eea] flex-shrink-0" />}
+                                            </button>
+                                        );
+                                    })}
+                                </>
+                            )}
+
+                            {/* Empty state (no error, not loading, no models) */}
+                            {!isLoading && models.length === 0 && (
+                                <div className={`px-2.5 py-4 text-xs text-center ${themeVal === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
+                                    No models available for this agent.
+                                </div>
+                            )}
+
+                            {/* Loading state (no models yet) */}
+                            {isLoading && models.length === 0 && (
+                                <div className={`px-2.5 py-4 text-xs text-center ${themeVal === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
+                                    <span className="inline-block w-3 h-3 mr-2 rounded-full border-2 border-[var(--text-muted)] border-t-transparent animate-spin align-middle" />
+                                    Fetching models from provider…
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Source + warning footer — pinned below the scroll area */}
+                    {(sourceLabel || warning) && !isError && (
+                        <div className={`px-2.5 pt-1.5 pb-1 mt-1 border-t flex-shrink-0 ${themeVal === 'light' ? 'border-gray-200' : 'border-[var(--border-color)]'}`}>
+                            {sourceLabel && (
+                                <div className={`text-[10px] ${themeVal === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
+                                    Source: {sourceLabel}
+                                </div>
+                            )}
+                            {warning && (
+                                <div className="text-[10px] text-amber-500 mt-0.5">⚠️ {warning}</div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -944,7 +1292,7 @@ export function ChatInput({
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px';
         }
     }, [value]);
 
@@ -1035,10 +1383,10 @@ export function ChatInput({
                     disabled={disabled}
                     rows={1}
                     className={`
-                        flex-1 px-4 py-2.5 min-h-[44px] max-h-[120px] rounded-xl border-2 resize-none font-inherit leading-relaxed transition-all duration-200 focus:outline-none focus:border-[#667eea]
+                        flex-1 px-4 py-3 min-h-[48px] max-h-[160px] rounded-xl border-2 resize-none font-inherit leading-relaxed transition-all duration-200 focus:outline-none focus:border-[#667eea]
                         ${theme === 'light' ? 'theme-bg-glass border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] shadow-sm' : 'theme-bg-input border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] shadow-sm'}
                     `}
-                    style={{ boxSizing: 'border-box', height: '44px' }}
+                    style={{ boxSizing: 'border-box', height: '48px' }}
                 />
                 <button
                     type="button"
@@ -1126,22 +1474,39 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
         return formatMessage(message.message);
     }, [message.message]);
 
-    // Filter image attachments
+    // Filter image attachments (uploaded files)
     const imageAttachments = message.attachments?.filter(
         (att) => att.mime && att.mime.startsWith('image/')
     ) || [];
+    
+    // Filter generated images (stored in attachments with type='image')
+    const generatedImages = (() => {
+        const atts = message.attachments;
+        if (!atts) return [];
+        if (Array.isArray(atts)) {
+            const typed = atts as AttachmentWithType[];
+            for (const att of typed) {
+                if (att.type === 'image' && att.images) {
+                    return att.images;
+                }
+            }
+        }
+        return [];
+    })();
+    
     const fileAttachments = message.attachments?.filter(
         (att) => att.mime && !att.mime.startsWith('image/')
     ) || [];
 
     const hasText = message.message.trim().length > 0;
     const hasImages = imageAttachments.length > 0;
+    const hasGeneratedImages = generatedImages.length > 0;
     const hasFiles = fileAttachments.length > 0;
 
-    if (!hasText && !hasImages && !hasFiles) return null;
+    if (!hasText && !hasImages && !hasGeneratedImages && !hasFiles) return null;
 
     return (
-        <div className={`flex flex-col ${isUser ? 'items-end self-end' : 'items-start self-start'}`}>
+        <div className={`flex flex-col ${isUser ? 'items-end self-end' : 'items-start self-start'} mx-3 sm:mx-5 md:mx-8`}>
             {/* Render image attachments */}
             {hasImages && (
                 <div className={`flex flex-wrap gap-2 ${hasText ? 'mb-2' : ''}`}>
@@ -1166,6 +1531,34 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
                     ))}
                 </div>
             )}
+            {/* Render generated images */}
+            {hasGeneratedImages && (
+                <div className={`flex flex-wrap gap-2 ${hasText ? 'mb-2' : ''}`}>
+                    {generatedImages.map((img, idx) => (
+                        <div key={`gen-${idx}`} className="relative group cursor-pointer" onClick={() => onImageClick?.(img.path)}>
+                            <img
+                                src={img.path}
+                                alt={img.prompt}
+                                className="max-w-[350px] max-h-[300px] rounded-lg object-cover border border-[rgba(102,126,234,0.3)] group-hover:opacity-80 transition-opacity"
+                                style={{ display: 'block' }}
+                                onClick={(e) => { e.stopPropagation(); onImageClick?.(img.path); }}
+                            />
+                            <div className="absolute bottom-1 left-1 right-1">
+                                <div className="text-[10px] text-white bg-black/50 rounded px-1.5 py-1 truncate text-center">
+                                    <span className="font-medium">{img.model}</span>
+                                    <span className="text-white/70 ml-1">• {img.provider}</span>
+                                </div>
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <div className="bg-black/50 rounded-lg p-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* Render non-image file attachments */}
             {hasFiles && (
                 <div className={`flex flex-wrap gap-2 ${hasText ? 'mb-2' : ''}`}>

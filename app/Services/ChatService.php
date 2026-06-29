@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Ai\Agents\ChatAgent;
 use App\Models\AiAgent;
-use App\Models\AiProvider;
+use App\Models\AdminAiAgent;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Log;
@@ -14,12 +14,18 @@ class ChatService
     /**
      * Send a message to the AI with optional file attachments.
      * All calls go through ChatAgent (Laravel AI package).
+     *
+     * @param  string|null  $model  Runtime-only model selection from the chat UI's
+     *                              Model Selector dropdown. Not persisted — this is
+     *                              the user's per-request pick. When null, ChatAgent
+     *                              falls back to AiAgent::defaultModelForProvider().
      */
     public function sendMessage(
         Chat $chat,
         string $messageText,
         ?AiAgent $aiAgent = null,
-        array $attachments = []
+        array $attachments = [],
+        ?string $model = null
     ): string {
         if (!$aiAgent) {
             $aiAgent = $this->getDefaultAgent($chat->user_id);
@@ -27,12 +33,11 @@ class ChatService
 
         // If user has no agents, fall back to admin's default provider
         if (!$aiAgent) {
-            $adminDefault = AiProvider::getDefault();
+            $adminDefault = AdminAiAgent::getDefault();
             if ($adminDefault) {
                 $aiAgent = new AiAgent();
                 $aiAgent->forceFill([
-                    'provider' => $adminDefault->key,
-                    'model' => $adminDefault->effective_model,
+                    'provider' => $adminDefault->provider,
                     'api_key' => null,
                     'is_default' => true,
                     'user_id' => $chat->user_id,
@@ -48,9 +53,17 @@ class ChatService
             // Ensure chat has messages loaded (including newly saved user message)
             $chat->load('messages');
 
-            // Use ChatAgent for all AI calls (Laravel AI package)
+            // Use ChatAgent for all AI calls (Laravel AI package).
+            // The $model argument overrides the per-provider default when provided
+            // (driven by the runtime Model Selector dropdown — never persisted).
             $agent = new ChatAgent($aiAgent, $chat);
-            $response = $agent->promptWithAttachments($messageText, $attachments);
+            $response = $agent->promptWithAttachments(
+                prompt: $messageText,
+                attachments: $attachments,
+                provider: null,
+                model: $model,
+                timeout: 120,
+            );
 
             // ChatAgent returns AgentResponse — extract text (it's a public property)
             if (isset($response->text)) {
@@ -62,7 +75,7 @@ class ChatService
             Log::error('ChatAgent error', [
                 'message' => $e->getMessage(),
                 'provider' => $aiAgent->provider,
-                'model' => $aiAgent->effective_model,
+                'model' => $model ?? AiAgent::defaultModelForProvider($aiAgent->provider),
             ]);
             return 'Error: ' . $e->getMessage();
         }

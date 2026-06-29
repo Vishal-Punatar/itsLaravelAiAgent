@@ -80,22 +80,6 @@ const navItems = [
         accent: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
     },
     {
-        label: 'AI Models',
-        description: 'Browse available models',
-        href: '/admin/models',
-        icon: Waves,
-        gradient: 'from-blue-500 to-cyan-600',
-        accent: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-    },
-    {
-        label: 'Model Sync',
-        description: 'Sync provider models with API',
-        href: '/admin/ai-models',
-        icon: RefreshCw,
-        gradient: 'from-purple-500 to-fuchsia-600',
-        accent: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
-    },
-    {
         label: 'Agent Settings',
         description: 'View agent configurations',
         href: '/admin/settings',
@@ -320,10 +304,18 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
                                     <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">ThinkChat's Default</span>
                                 </div>
                                 <div className="text-sm font-bold text-[var(--text-primary)] truncate mb-0.5">
-                                    {(stats as any).default_provider?.name ?? "Provider"}
+                                    {(stats as any).default_provider?.name ?? "—"}
                                 </div>
-                                <div className="text-[11px] text-[var(--text-muted)] truncate">
-                                    {(stats as any).default_provider?.model ?? "Not configured"}
+                                <div className={`text-[11px] truncate flex items-center gap-1 ${
+                                    (stats as any).default_provider?.has_api_key
+                                        ? 'text-emerald-400'
+                                        : 'text-[var(--text-muted)]'
+                                }`}>
+                                    {(stats as any).default_provider
+                                        ? ((stats as any).default_provider.has_api_key
+                                            ? '✓ Configured'
+                                            : 'Not configured')
+                                        : 'No default set'}
                                 </div>
                             </div>
                         </div>

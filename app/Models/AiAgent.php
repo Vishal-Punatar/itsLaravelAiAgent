@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Crypt;
 
 class AiAgent extends Model
 {
@@ -13,7 +12,6 @@ class AiAgent extends Model
         'name',
         'provider',
         'api_key',
-        'model',
         'is_default',
     ];
 
@@ -49,16 +47,13 @@ class AiAgent extends Model
     }
 
     /**
-     * Get the effective model name.
+     * Resolve a default text model for the provider when the user
+     * hasn't picked one from the live dropdown yet.
+     * This is a fallback only — runtime selections always win.
      */
-    public function getEffectiveModelAttribute(): string
+    public static function defaultModelForProvider(string $provider): string
     {
-        if ($this->model) {
-            return $this->model;
-        }
-
-        // Return default model based on provider
-        return match ($this->provider) {
+        return match ($provider) {
             'openai' => 'gpt-4o-mini',
             'gemini' => 'gemini-2.0-flash',
             'anthropic' => 'claude-haiku-4-5',
@@ -67,6 +62,29 @@ class AiAgent extends Model
             'bedrock' => 'anthropic.claude-sonnet-4-6',
             default => 'gpt-4o-mini',
         };
+    }
+
+    /**
+     * Resolve a default image model for the provider when the user
+     * hasn't picked one. Returns null if provider doesn't support image gen.
+     */
+    public static function defaultImageModelForProvider(string $provider): ?string
+    {
+        return match ($provider) {
+            'openai' => 'dall-e-3',
+            'gemini' => 'gemini-2.5-flash-image',
+            'openrouter' => 'openai/dall-e-3',
+            'xai' => 'dall-e-3',
+            default => null,
+        };
+    }
+
+    /**
+     * Check if this provider supports image generation.
+     */
+    public static function supportsImageGeneration(string $provider): bool
+    {
+        return self::defaultImageModelForProvider($provider) !== null;
     }
 
     /**
@@ -128,177 +146,24 @@ class AiAgent extends Model
     }
 
     /**
-     * List of supported AI providers and models per Laravel AI SDK
+     * List of supported provider slugs.
+     * Used by admin UI to populate the provider dropdown.
+     * Model lists always come from live API — never hardcoded.
      */
-    public static function allowedModels(): array
+    public static function supportedProviders(): array
     {
         return [
-            'openai' => [
-                'label' => 'OpenAI',
-                'models' => [
-                    'gpt-4.5' => 'GPT-4.5',
-                    'gpt-4o' => 'GPT-4o',
-                    'gpt-4o-mini' => 'GPT-4o Mini',
-                    'gpt-4-turbo' => 'GPT-4 Turbo',
-                    'gpt-3.5-turbo' => 'GPT-3.5 Turbo',
-                ],
-            ],
-            'anthropic' => [
-                'label' => 'Anthropic Claude',
-                'models' => [
-                    'claude-opus-4-8' => 'Claude Opus 4.8',
-                    'claude-sonnet-4-6' => 'Claude Sonnet 4.6',
-                    'claude-haiku-4-5' => 'Claude Haiku 4.5',
-                    'claude-fable-5' => 'Claude Fable 5',
-                ],
-            ],
-            'gemini' => [
-                'label' => 'Google Gemini',
-                'models' => [
-                    'gemini-2.5-flash' => 'Gemini 2.5 Flash',
-                    'gemini-2.0-flash' => 'Gemini 2.0 Flash',
-                ],
-            ],
-            'azure' => [
-                'label' => 'Azure OpenAI',
-                'models' => [
-                    'gpt-5.5' => 'GPT-5.5',
-                    'gpt-5.4' => 'GPT-5.4',
-                    'gpt-5.4-mini' => 'GPT-5.4 Mini',
-                    'gpt-5.4-nano' => 'GPT-5.4 Nano',
-                    'gpt-5' => 'GPT-5',
-                    'gpt-5-mini' => 'GPT-5 Mini',
-                    'gpt-5-nano' => 'GPT-5 Nano',
-                    'gpt-4o' => 'GPT-4o',
-                    'gpt-4o-mini' => 'GPT-4o Mini',
-                    'gpt-4-turbo' => 'GPT-4 Turbo',
-                    'o3' => 'o3',
-                    'o4-mini' => 'o4-mini',
-                    'codex-mini' => 'Codex Mini',
-                ],
-            ],
-            'bedrock' => [
-                'label' => 'AWS Bedrock',
-                'models' => [
-                    // Anthropic Claude 4.x
-                    'anthropic.claude-opus-4-8' => 'Claude Opus 4.8',
-                    'anthropic.claude-sonnet-4-6' => 'Claude Sonnet 4.6',
-                    'anthropic.claude-haiku-4-5' => 'Claude Haiku 4.5',
-                    'anthropic.claude-fable-5' => 'Claude Fable 5',
-                    // Anthropic Claude 3.x (legacy)
-                    'anthropic.claude-3-5-sonnet-20241022-v1_0' => 'Claude 3.5 Sonnet',
-                    'anthropic.claude-3-opus-20240307-v1_0' => 'Claude 3 Opus',
-                    'anthropic.claude-3-haiku-20240307-v1_0' => 'Claude 3 Haiku',
-                    // Meta Llama
-                    'meta.llama4-scout-17b-instruct' => 'Llama 4 Scout 17B',
-                    'meta.llama4-maverick-17b-instruct' => 'Llama 4 Maverick 17B',
-                    'meta.llama-3-3-70b-instruct' => 'Llama 3.3 70B',
-                    'meta.llama-3-2-90b-instruct' => 'Llama 3.2 90B',
-                    'meta.llama-3-2-11b-instruct' => 'Llama 3.2 11B',
-                    'meta.llama-3-2-3b-instruct' => 'Llama 3.2 3B',
-                    'meta.llama-3-1-405b-instruct' => 'Llama 3.1 405B',
-                    'meta.llama-3-1-70b-instruct-v1_0' => 'Llama 3.1 70B',
-                    'meta.llama-3-1-8b-instruct-v1_0' => 'Llama 3.1 8B',
-                    // Amazon Nova
-                    'us.amazon.nova-pro-v1_0' => 'Nova Pro',
-                    'us.amazon.nova-lite-v1_0' => 'Nova Lite',
-                    'us.amazon.nova-micro-v1_0' => 'Nova Micro',
-                    'us.amazon.nova-premier-v1_0' => 'Nova Premier',
-                    'us.amazon.nova-canvas-v1_0' => 'Nova Canvas',
-                    'us.amazon.nova-reel-v1_0' => 'Nova Reel',
-                    // Mistral
-                    'mistral.mistral-large-3' => 'Mistral Large 3',
-                    'mistral.mistral-small' => 'Mistral Small',
-                    'mistral.mixtral-8x7b-instruct' => 'Mixtral 8x7B',
-                ],
-            ],
-            'groq' => [
-                'label' => 'GroqCloud',
-                'models' => [
-                    'llama-3.1-8b-instant' => 'Llama 3.1 8B Instant',
-                    'llama-3.3-70b-versatile' => 'Llama 3.3 70B Versatile',
-                    'qwen/qwen3-32b' => 'Qwen3 32B',
-                    'qwen/qwen3.6-27b' => 'Qwen3.6 27B',
-                    'openai/gpt-oss-120b' => 'GPT OpenSource 120B',
-                    'openai/gpt-oss-20b' => 'GPT OpenSource 20B',
-                    'groq/compound' => 'Groq Compound',
-                    'groq/compound-mini' => 'Groq Compound Mini',
-                ],
-            ],
-            'xai' => [
-                'label' => 'xAI Grok',
-                'models' => [
-                    'grok-4.3' => 'Grok 4.3',
-                    'grok-4.20-0309-reasoning' => 'Grok 4.20 Reasoning',
-                    'grok-4.20-0309-non-reasoning' => 'Grok 4.20 Non-Reasoning',
-                ],
-            ],
-            'deepseek' => [
-                'label' => 'DeepSeek',
-                'models' => [
-                    'deepseek-v4-flash' => 'DeepSeek V4 Flash',
-                    'deepseek-v4-pro' => 'DeepSeek V4 Pro',
-                ],
-            ],
-            'mistral' => [
-                'label' => 'Mistral AI',
-                'models' => [
-                    'mistral-medium-3.5' => 'Mistral Medium 3.5',
-                    'mistral-small-4' => 'Mistral Small 4',
-                    'mistral-large-latest' => 'Mistral Large',
-                    'mistral-small-latest' => 'Mistral Small',
-                    'codestral-latest' => 'Codestral',
-                ],
-            ],
-            'ollama' => [
-                'label' => 'Ollama (Local)',
-                'models' => [
-                    'llama3.3' => 'Llama 3.3',
-                    'llama3.2' => 'Llama 3.2',
-                    'llama3.1' => 'Llama 3.1',
-                    'mistral' => 'Mistral',
-                    'mixtral' => 'Mixtral',
-                    'codellama' => 'Code Llama',
-                    'phi3' => 'Phi-3',
-                    'qwen2.5' => 'Qwen 2.5',
-                    'deepseek-coder' => 'DeepSeek Coder',
-                ],
-            ],
-            'openrouter' => [
-                'label' => 'OpenRouter',
-                'models' => [
-                    'openrouter/auto' => 'Auto (Best Available)',
-                    'openai/gpt-4o' => 'GPT-4o',
-                    'openai/gpt-4o-mini' => 'GPT-4o Mini',
-                    'anthropic/claude-3.5-sonnet' => 'Claude 3.5 Sonnet',
-                    'google/gemini-2.0-flash' => 'Gemini 2.0 Flash',
-                    'meta-llama/llama-3.3-70b-instruct' => 'Llama 3.3 70B',
-                    'deepseek/deepseek-chat' => 'DeepSeek Chat',
-                    'mistralai/mistral-large' => 'Mistral Large',
-                    'x-ai/grok-2' => 'Grok 2',
-                ],
-            ],
+            'openai' => 'OpenAI',
+            'anthropic' => 'Anthropic Claude',
+            'gemini' => 'Google Gemini',
+            'azure' => 'Azure OpenAI',
+            'bedrock' => 'AWS Bedrock',
+            'groq' => 'GroqCloud',
+            'xai' => 'xAI Grok',
+            'deepseek' => 'DeepSeek',
+            'mistral' => 'Mistral AI',
+            'ollama' => 'Ollama (Local)',
+            'openrouter' => 'OpenRouter',
         ];
-    }
-
-    /**
-     * Get the API endpoint for a provider
-     */
-    public static function getApiEndpoint(string $provider, string $model): string
-    {
-        return match ($provider) {
-            'openai' => 'https://api.openai.com/v1/chat/completions',
-            'anthropic' => 'https://api.anthropic.com/v1/messages',
-            'gemini' => 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
-            'azure' => 'https://{your-resource}.openai.azure.com/openai/deployments/{model}/chat/completions?api-version=2024-02-01',
-            'bedrock' => 'https://bedrock.{region}.amazonaws.com',
-            'groq' => 'https://api.groq.com/openai/v1/chat/completions',
-            'xai' => 'https://api.x.ai/v1/chat/completions',
-            'deepseek' => 'https://api.deepseek.com/v1/chat/completions',
-            'mistral' => 'https://api.mistral.ai/v1/chat/completions',
-            'ollama' => 'http://localhost:11434/api/chat',
-            'openrouter' => 'https://openrouter.ai/api/v1/chat/completions',
-            default => '',
-        };
     }
 }

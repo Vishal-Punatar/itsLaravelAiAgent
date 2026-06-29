@@ -1,63 +1,67 @@
 import { useState } from 'react';
-import { Bot, ArrowLeft, CheckCircle2, XCircle, Save, Star, Eye, EyeOff, Settings, X, Trash2 } from 'lucide-react';
+import { Bot, ArrowLeft, CheckCircle2, XCircle, Save, Star, Eye, EyeOff, Settings, X, Trash2, Power } from 'lucide-react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
 
 interface Provider {
-    id: number;
-    key: string;
-    label: string;
+    id: number | null;
+    provider: string;
+    name: string;
     api_key: string | null;
     is_default: boolean;
     is_active: boolean;
-    default_model: string | null;
-}
-
-interface ProviderModels {
-    [key: string]: { label: string; models: Record<string, string> };
+    is_configured: boolean;
 }
 
 interface AdminProvidersProps {
     providers: Provider[];
-    models: ProviderModels;
 }
 
-export default function AdminProviders({ providers: initialProviders, models }: AdminProvidersProps) {
+export default function AdminProviders({ providers: initialProviders }: AdminProvidersProps) {
     const [providers, setProviders] = useState<Provider[]>(initialProviders);
     const [editProvider, setEditProvider] = useState<Provider | null>(null);
     const [saving, setSaving] = useState(false);
-    const [showApiKey, setShowApiKey] = useState(false);
     const [settingDefault, setSettingDefault] = useState(false);
+    const [togglingId, setTogglingId] = useState<number | null>(null);
+    const [showApiKey, setShowApiKey] = useState(false);
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const showToast = (type: 'success' | 'error', message: string) => {
         setToast({ type, message });
-        setTimeout(() => setToast(null), 4000);
+        setTimeout(() => setToast(null), 3500);
     };
 
     const saveProvider = () => {
         if (!editProvider) return;
-        setSaving(true);
+        const isNew = !editProvider.id;
+        const url = isNew ? '/admin/providers' : `/admin/providers/${editProvider.id}`;
 
-        fetch(`/admin/providers/${editProvider.id}`, {
-            method: 'PUT',
+        setSaving(true);
+        const method = isNew ? 'POST' : 'PUT';
+        fetch(url, {
+            method,
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrf(),
                 'Accept': 'application/json',
             },
             body: JSON.stringify({
+                provider: editProvider.provider,
+                name: editProvider.name,
                 api_key: editProvider.api_key || null,
-                default_model: editProvider.default_model || null,
-                is_active: editProvider.is_active,
+                is_active: editProvider.is_active ?? true,
             }),
         })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    showToast('success', `${editProvider.label} saved successfully.`);
-                    setProviders(prev => prev.map(p => p.id === editProvider.id ? { ...editProvider } : p));
+                    showToast('success', `${editProvider.name} saved successfully.`);
+                    if (isNew && data.provider) {
+                        setProviders(prev => prev.map(p => p.provider === editProvider.provider ? { ...editProvider, ...data.provider, is_configured: true } : p));
+                    } else {
+                        setProviders(prev => prev.map(p => p.id === editProvider.id ? { ...editProvider } : p));
+                    }
                     setEditProvider(null);
                 } else {
                     showToast('error', data.message || 'Failed to save.');
@@ -80,7 +84,7 @@ export default function AdminProviders({ providers: initialProviders, models }: 
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    showToast('success', `${provider.label} is now the default.`);
+                    showToast('success', `${provider.name} is now the default.`);
                     setProviders(prev => prev.map(p => ({
                         ...p,
                         is_default: p.id === provider.id,
@@ -104,7 +108,7 @@ export default function AdminProviders({ providers: initialProviders, models }: 
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    showToast('success', `${defaultProvider.label} is no longer the default.`);
+                    showToast('success', `${defaultProvider.name} is no longer the default.`);
                     setProviders(prev => prev.map(p => ({ ...p, is_default: false })));
                 } else {
                     showToast('error', data.message || 'Failed.');
@@ -112,6 +116,28 @@ export default function AdminProviders({ providers: initialProviders, models }: 
             })
             .catch(() => showToast('error', 'Something went wrong.'))
             .finally(() => setSettingDefault(false));
+    };
+
+    const handleToggleActive = (provider: Provider) => {
+        if (!provider.id) return;
+        setTogglingId(provider.id);
+        fetch(`/admin/providers/${provider.id}/toggle-active`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    setProviders(prev => prev.map(p =>
+                        p.id === provider.id ? { ...p, is_active: data.is_active } : p
+                    ));
+                    showToast('success', data.message);
+                } else {
+                    showToast('error', data.message || 'Failed to toggle.');
+                }
+            })
+            .catch(() => showToast('error', 'Something went wrong.'))
+            .finally(() => setTogglingId(null));
     };
 
     const activeCount = providers.filter(p => p.is_active).length;
@@ -159,14 +185,9 @@ export default function AdminProviders({ providers: initialProviders, models }: 
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-white">Default Provider</p>
                         <p className="text-xs text-[#888]">
-                            {providers.find(p => p.is_default)?.label} — new users without an API key will use this provider
+                            {providers.find(p => p.is_default)?.name} — new users without an API key will use this provider
                         </p>
                     </div>
-                    {providers.find(p => p.is_default)?.default_model && (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-[rgba(102,126,234,0.2)] text-[#a5b4fc] border border-[rgba(102,126,234,0.3)]">
-                            {providers.find(p => p.is_default)?.default_model}
-                        </span>
-                    )}
                     <button
                         onClick={handleRemoveDefault}
                         disabled={settingDefault}
@@ -180,10 +201,10 @@ export default function AdminProviders({ providers: initialProviders, models }: 
             {/* Providers Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {providers.map((provider) => {
-                    const gradient = getProviderGradient(provider.key);
+                    const gradient = getProviderGradient(provider.provider);
                     return (
                         <div
-                            key={provider.id}
+                            key={provider.id ?? provider.provider}
                             className={`relative rounded-2xl border overflow-hidden transition-all ${
                                 provider.is_default
                                     ? 'border-[rgba(102,126,234,0.5)] bg-[rgba(102,126,234,0.05)]'
@@ -195,48 +216,45 @@ export default function AdminProviders({ providers: initialProviders, models }: 
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-11 h-11 rounded-xl bg-gradient-to-r ${gradient} flex items-center justify-center shadow-lg`}>
-                                            <ProviderIcon provider={provider.key} size={24} color="#ffffff" />
+                                            <ProviderIcon provider={provider.provider} size={24} color="#ffffff" />
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2">
-                                                <h3 className="text-sm font-semibold text-white">{provider.label}</h3>
+                                                <h3 className="text-sm font-semibold text-white">{provider.name}</h3>
                                                 {provider.is_default && (
                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white">
                                                         DEFAULT
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-[11px] text-[#555] capitalize">{provider.key}</p>
+                                            <p className="text-[11px] text-[#555] capitalize">{provider.provider}</p>
                                         </div>
                                     </div>
 
                                 </div>
 
-                                {/* Model Badge */}
-                                {provider.default_model ? (
-                                    <div className="flex items-center gap-1.5 mb-3">
-                                        <span className="text-[10px] text-[#666]">Model:</span>
-                                        <span className="px-2 py-0.5 rounded bg-[var(--bg-tertiary)] text-[10px] text-[#aaa] font-mono">
-                                            {provider.default_model}
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="mb-3">
-                                        <span className="text-[10px] text-[#555] italic">No default model set</span>
-                                    </div>
-                                )}
+                                {/* Status */}
+                                <div className="mb-3">
+                                    <span className="text-[10px] text-[#555] italic">
+                                        {provider.is_configured ? 'API key configured' : 'No API key configured'}
+                                    </span>
+                                </div>
 
                                 {/* Action Buttons */}
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => setEditProvider({ ...provider })}
-                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-white hover:border-[rgba(102,126,234,0.4)] transition-all"
+                                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                                            provider.is_configured
+                                                ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-white hover:border-[rgba(102,126,234,0.4)]'
+                                                : 'bg-[rgba(102,126,234,0.15)] border-[rgba(102,126,234,0.4)] text-[#667eea] hover:bg-[rgba(102,126,234,0.25)]'
+                                        }`}
                                     >
                                         <Settings className="w-3.5 h-3.5" />
-                                        Configure
+                                        {provider.is_configured ? 'Configure' : 'Setup'}
                                     </button>
 
-                                    {!provider.is_default && (
+                                    {provider.is_configured && !provider.is_default && (
                                         <button
                                             onClick={() => handleSetDefault(provider)}
                                             disabled={settingDefault}
@@ -246,6 +264,26 @@ export default function AdminProviders({ providers: initialProviders, models }: 
                                             <Star className="w-3.5 h-3.5" />
                                         </button>
                                     )}
+
+                                    {/* Active/Inactive toggle */}
+                                    <button
+                                        onClick={() => handleToggleActive(provider)}
+                                        disabled={togglingId === provider.id || (provider.is_default && provider.is_active)}
+                                        title={
+                                            provider.is_default && provider.is_active
+                                                ? 'Default providers must stay active — unset as default first to deactivate'
+                                                : provider.is_active
+                                                    ? 'Deactivate provider'
+                                                    : 'Activate provider'
+                                        }
+                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                            provider.is_active
+                                                ? 'border-[rgba(34,197,94,0.4)] text-emerald-400 hover:bg-[rgba(34,197,94,0.1)]'
+                                                : 'border-[rgba(156,163,175,0.3)] text-[var(--text-muted)] hover:bg-[rgba(156,163,175,0.1)]'
+                                        }`}
+                                    >
+                                        <Power className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -267,12 +305,12 @@ export default function AdminProviders({ providers: initialProviders, models }: 
                             {/* Modal Header */}
                             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-r ${getProviderGradient(editProvider.key)} flex items-center justify-center`}>
-                                        <ProviderIcon provider={editProvider.key} size={20} color="#ffffff" />
+                                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-r ${getProviderGradient(editProvider.provider)} flex items-center justify-center`}>
+                                        <ProviderIcon provider={editProvider.provider} size={20} color="#ffffff" />
                                     </div>
                                     <div>
-                                        <h2 className="text-base font-semibold text-white">Configure {editProvider.label}</h2>
-                                        <p className="text-xs text-[#666]">Update API key and default model</p>
+                                        <h2 className="text-base font-semibold text-white">{editProvider.is_configured ? 'Configure' : 'Setup'} {editProvider.name}</h2>
+                                        <p className="text-xs text-[#666]">Update API key</p>
                                     </div>
                                 </div>
                                 <button
@@ -320,39 +358,6 @@ export default function AdminProviders({ providers: initialProviders, models }: 
                                     </div>
                                     <p className="text-xs text-[#555]">Stored encrypted. Leave blank or click remove to clear.</p>
                                 </div>
-
-                                {/* Default Model */}
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-sm font-medium text-[var(--text-secondary)]">Default Model</label>
-                                        {editProvider.default_model && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditProvider({ ...editProvider, default_model: '' })}
-                                                className="text-xs text-[#667eea] hover:text-white transition-colors"
-                                                title="Clear default model"
-                                            >
-                                                Clear
-                                            </button>
-                                        )}
-                                    </div>
-                                    <p className="text-xs text-[#888]">
-                                        <span className="text-blue-400 font-medium">Note:</span> To sync the latest models,{' '}
-                                        <a href="/admin/ai-models" className="text-[#667eea] hover:text-white underline">go to Model Sync</a>.
-                                    </p>
-                                    <select
-                                        value={editProvider.default_model || ''}
-                                        onChange={(e) => setEditProvider({ ...editProvider, default_model: e.target.value })}
-                                        className="w-full px-4 py-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-white text-sm focus:outline-none focus:border-[#667eea] transition-colors appearance-none cursor-pointer"
-                                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 16px center' }}
-                                    >
-                                        <option value="">Select a model...</option>
-                                        {(models[editProvider.key]?.models || {}) && Object.entries(models[editProvider.key].models).map(([key, name]) => (
-                                            <option key={key} value={key}>{name}</option>
-                                        ))}
-                                    </select>
-                                    <p className="text-xs text-[#555]">This model will be assigned to new users who don't configure their own.</p>
-                                </div>
                             </div>
 
                             {/* Modal Footer */}
@@ -367,14 +372,19 @@ export default function AdminProviders({ providers: initialProviders, models }: 
                                 </button>
                                 <button
                                     onClick={() => setEditProvider(null)}
-                                    className="px-5 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] text-sm hover:bg-[var(--bg-hover)] transition-colors"
+                                    className="px-5 py-2.5 rounded-xl text-sm font-medium text-[#888] hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors"
                                 >
                                     Cancel
                                 </button>
                             </div>
-                        </div>
                     </div>
+                </div>
             )}
+
+            {/* Active count footer */}
+            <div className="text-center text-xs text-[#555] pt-2">
+                {activeCount} of {providers.length} providers active
+            </div>
         </div>
     );
 }

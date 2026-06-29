@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\AiAgent;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Crypt;
 use Inertia\Inertia;
 
 class AiAgentController extends Controller
@@ -16,7 +15,6 @@ class AiAgentController extends Controller
             'id' => $a->id,
             'name' => $a->name,
             'provider' => $a->provider,
-            'model' => $a->model,
             'is_default' => $a->is_default,
         ]);
         $chats = $user->chats()
@@ -68,7 +66,6 @@ class AiAgentController extends Controller
             'name' => 'required|string|max:255',
             'provider' => 'required|in:openai,gemini,anthropic,groq,xai,deepseek,mistral,azure,bedrock,ollama,openrouter',
             'api_key' => 'required|string',
-            'model' => 'nullable|string|max:255',
         ]);
 
         // If this is the first agent or user wants it as default, set as default
@@ -84,7 +81,6 @@ class AiAgentController extends Controller
             'name' => $validated['name'],
             'provider' => $validated['provider'],
             'api_key' => encrypt($validated['api_key']),
-            'model' => $validated['model'] ?? null,
             'is_default' => $isDefault,
         ]);
 
@@ -103,7 +99,6 @@ class AiAgentController extends Controller
             'id' => $aiAgent->id,
             'name' => $aiAgent->name,
             'provider' => $aiAgent->provider,
-            'model' => $aiAgent->model,
             'is_default' => $aiAgent->is_default,
         ];
         $data['isEdit'] = true;
@@ -121,7 +116,6 @@ class AiAgentController extends Controller
             'name' => 'required|string|max:255',
             'provider' => 'required|in:openai,gemini,anthropic,groq,xai,deepseek,mistral,azure,bedrock,ollama,openrouter',
             'api_key' => 'nullable|string',
-            'model' => 'nullable|string|max:255',
             'is_default' => 'boolean',
         ]);
 
@@ -133,7 +127,6 @@ class AiAgentController extends Controller
         $updateData = [
             'name' => $validated['name'],
             'provider' => $validated['provider'],
-            'model' => $validated['model'] ?? null,
             'is_default' => $request->boolean('is_default'),
         ];
 
@@ -179,7 +172,7 @@ class AiAgentController extends Controller
     public function list()
     {
         $agents = AiAgent::where('user_id', auth()->id())
-            ->select('id', 'name', 'provider', 'model', 'is_default')
+            ->select('id', 'name', 'provider', 'is_default')
             ->get();
 
         return response()->json($agents);
