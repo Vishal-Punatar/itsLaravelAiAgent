@@ -8,7 +8,7 @@
         <title>{{ $title ?? 'ThinkChat' }}</title>
         <script>
             // Apply theme BEFORE React mounts to prevent flash of wrong theme.
-            // Source of truth = localStorage (user's active choice) for all navigations.
+            // Preserves 'system' as 'system' so OS pref is re-checked on every load.
             (function() {
                 try {
                     var lsTheme = localStorage.getItem('app_theme');
@@ -28,8 +28,16 @@
                         document.body.classList.add('dark');
                     }
                     root.setAttribute('data-theme', resolved);
-                    // Persist resolved value so inertia:start never sees 'system'
-                    try { localStorage.setItem('app_theme', resolved); } catch (e) {}
+                    // Keep 'system' as 'system' in storage so OS pref stays live.
+                    // Only persist a resolved value for explicit 'light'/'dark' picks.
+                    try {
+                        if (lsTheme === null) {
+                            // First visit: persist whatever the user's DB choice resolved to
+                            // (so the choice is sticky for explicit picks, live for 'system').
+                            localStorage.setItem('app_theme', theme);
+                        }
+                        // else: user already has a stored choice — don't clobber it
+                    } catch (e) {}
                 } catch (e) {}
             })();
         </script>
@@ -37,23 +45,26 @@
         @vite(['resources/js/app.tsx', 'resources/css/app.css'])
         <script>
             // Re-apply theme on every Inertia client-side navigation.
-            // ChatLayout saves the resolved (never 'system') value to localStorage,
-            // so we just read it directly — no recalculation needed.
+            // Handles 'system' by re-evaluating the OS preference live.
             document.addEventListener('inertia:start', function() {
                 try {
                     var lsTheme = localStorage.getItem('app_theme');
-                    var theme = lsTheme || @json(auth()->user()->theme ?? null) || 'dark';
+                    var theme = lsTheme || @json(auth()->user()->theme ?? null) || 'system';
                     var root = document.documentElement;
+                    var resolved = theme;
+                    if (theme === 'system') {
+                        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                    }
                     root.classList.remove('light', 'dark');
                     document.body.classList.remove('light', 'dark');
-                    if (theme === 'light') {
+                    if (resolved === 'light') {
                         root.classList.add('light');
                         document.body.classList.add('light');
                         root.setAttribute('data-theme', 'light');
                     } else {
                         root.classList.add('dark');
                         document.body.classList.add('dark');
-                        root.setAttribute('data-theme', 'dark');
+                        root.setAttribute('data-theme', resolved);
                     }
                 } catch (e) {}
             });

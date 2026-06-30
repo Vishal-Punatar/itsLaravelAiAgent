@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip, Cpu, AlertTriangle } from 'lucide-react';
+import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip, Cpu, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { useMemo } from 'react';
 import { router } from '@inertiajs/react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
@@ -251,6 +251,23 @@ export default function ChatLayout({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Listen for theme changes from other components (e.g. Profile page's
+    // Appearance picker) so the header dropdown's icon and selected state
+    // stay in sync without a full page refresh.
+    useEffect(() => {
+        function onThemeChanged(e: Event) {
+            const ce = e as CustomEvent<'light' | 'dark' | 'system'>;
+            const next = ce.detail;
+            if (next === 'light' || next === 'dark' || next === 'system') {
+                setTheme(next);
+                applyTheme(next);
+            }
+        }
+        window.addEventListener('app:theme-changed', onThemeChanged);
+        return () => window.removeEventListener('app:theme-changed', onThemeChanged);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -384,21 +401,22 @@ export default function ChatLayout({
     };
 
     const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
-        // Resolve 'system' to an actual value and save that — never store 'system'
-        // so blade's inertia:start script uses a stable value on every navigation
-        const resolved = newTheme === 'system'
-            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-            : newTheme;
+        // Save the user's actual selection — keep 'system' as 'system' so
+        // the OS preference is re-evaluated on every page load / Inertia nav.
         try {
-            localStorage.setItem('app_theme', resolved);
+            localStorage.setItem('app_theme', newTheme);
         } catch (e) {}
-        
+
         // Apply theme to DOM immediately
         applyTheme(newTheme);
-        
+
         // Update React state
         setTheme(newTheme);
-        
+
+        // Notify other components (e.g. Profile's Appearance picker) so
+        // their local `theme` state stays in sync without a full page refresh.
+        try { window.dispatchEvent(new CustomEvent('app:theme-changed', { detail: newTheme })); } catch (e) {}
+
         // Close dropdown
         setThemeDropdownOpen(false);
         
@@ -655,11 +673,26 @@ export default function ChatLayout({
                 {/* Sidebar Footer */}
                 <div className={`p-2 sm:p-3 md:p-4 border-t ${theme === 'light' ? 'border-gray-200' : 'border-[rgba(102,126,234,0.1)]'}`}>
                     <div className={`flex items-center gap-1.5 p-1.5 rounded-lg ${theme === 'light' ? 'bg-gray-100' : 'bg-[rgba(102,126,234,0.08)]'}`}>
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0">{user?.name?.charAt(0) || 'U'}</div>
-                        <div className="flex-1 min-w-0">
-                            <div className={`text-[11px] font-medium truncate theme-text-primary`}>{user?.name || 'User'}</div>
-                            <div className={`text-[9px] truncate ${theme === 'light' ? 'text-gray-500' : 'text-[var(--text-muted)]'}`}>{user?.email || 'user@email.com'}</div>
-                        </div>
+                        <a href="/profile" className="flex items-center gap-1.5 flex-1 min-w-0 rounded-md hover:opacity-80 transition-opacity" title="Open profile">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-r from-[#667eea] to-[#764ba2] flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0">{user?.name?.charAt(0) || 'U'}</div>
+                            <div className="flex-1 min-w-0">
+                                <div className={`text-[11px] font-medium truncate theme-text-primary`}>{user?.name || 'User'}</div>
+                                <div className={`text-[9px] truncate ${theme === 'light' ? 'text-gray-500' : 'text-[var(--text-muted)]'}`}>{user?.email || 'user@email.com'}</div>
+                            </div>
+                        </a>
+                        <form action="/logout" method="POST" onSubmit={handleLogout}>
+                            <button
+                                type="submit"
+                                title="Logout"
+                                className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors flex-shrink-0 ${
+                                    theme === 'light'
+                                        ? 'text-gray-500 hover:text-[#e74c3c] hover:bg-[rgba(231,76,60,0.12)]'
+                                        : 'text-[var(--text-muted)] hover:text-[#e74c3c] hover:bg-[rgba(231,76,60,0.15)]'
+                                }`}
+                            >
+                                <LogOut className="w-3.5 h-3.5" />
+                            </button>
+                        </form>
                     </div>
                 </div>
             </aside>
@@ -690,7 +723,18 @@ export default function ChatLayout({
                         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors lg:hidden">
                             <Menu className="w-5 h-5" />
                         </button>
-                        
+
+                        {/* Back button — shown only when on a specific chat (not the chat list / new-chat) */}
+                        {currentChat?.id && (
+                            <button
+                                onClick={() => router.get('/chat')}
+                                title="Back to chats"
+                                aria-label="Back to chats"
+                                className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors theme-text-secondary flex-shrink-0"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                            </button>
+                        )}
 
                         <div className="flex flex-col min-w-0">
                             <h1 className={`text-sm sm:text-base font-semibold theme-text-primary leading-tight truncate max-w-[150px] sm:max-w-[300px]`}>{currentChat?.title || 'ThinkChat'}</h1>
@@ -742,11 +786,6 @@ export default function ChatLayout({
                         {user?.is_admin && (
                             <a href="/admin" className="px-3 py-1.5 rounded-lg text-xs bg-[rgba(231,76,60,0.2)] text-[#e74c3c] hover:bg-[rgba(231,76,60,0.3)] transition-colors">Admin</a>
                         )}
-                        <form action="/logout" method="POST" onSubmit={handleLogout} className="inline">
-                            <button type="submit" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#e74c3c] hover:bg-[rgba(231,76,60,0.15)] transition-colors">
-                                <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span>
-                            </button>
-                        </form>
                     </div>
                 </header>
 

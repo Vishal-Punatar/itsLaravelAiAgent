@@ -49,7 +49,15 @@ const providers = [
 
 export default function AgentForm({ agent, agents, chats, user, isEdit = false }: AgentFormProps) {
 
-    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>((document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system') ?? user.theme ?? 'system');
+    const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(
+        (() => {
+            try {
+                const ls = localStorage.getItem('app_theme');
+                if (ls === 'light' || ls === 'dark' || ls === 'system') return ls;
+            } catch (e) {}
+            return user.theme ?? 'system';
+        })()
+    );
     const [name, setName] = useState(agent?.name ?? '');
     const [provider, setProvider] = useState(agent?.provider ?? 'openai');
     const [apiKey, setApiKey] = useState('');
@@ -152,15 +160,11 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
         }
     };
 
-    // Sync theme state with data-theme attribute when it changes (e.g., via theme toggle)
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            const newTheme = document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'system';
-            setTheme(newTheme);
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-        return () => observer.disconnect();
-    }, []);
+    // NOTE: We intentionally do NOT observe data-theme here. data-theme on <html>
+    // is the RESOLVED 'light'/'dark' (set by the blade script and ChatLayout's
+    // applyTheme), so an observer would overwrite the user's literal 'system'
+    // selection with the resolved value. setTheme(newTheme) inside
+    // handleThemeChange is the single source of truth for the picked value.
 
     const selectedProvider = providers.find(p => p.value === provider) || providers[0];
 
