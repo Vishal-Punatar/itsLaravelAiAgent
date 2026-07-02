@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip, Cpu, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip, Cpu, AlertTriangle, ArrowLeft, Star, StarOff } from 'lucide-react';
 import { useMemo } from 'react';
 import { router } from '@inertiajs/react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
@@ -181,6 +182,8 @@ interface Chat {
     created_at: string;
     is_pinned?: boolean;
     pinned_order?: number | null;
+    is_favourite?: boolean;
+    favourited_at?: string | null;
 }
 
 interface ChatLayoutProps {
@@ -233,6 +236,10 @@ export default function ChatLayout({
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     const safeChats = sortedChats;
+    // Split into favourites and the rest. Backend already sorts favourited
+    // first (by favourited_at desc), so filtering preserves order.
+    const favouriteChats = safeChats.filter((c) => c.is_favourite);
+    const otherChats = safeChats.filter((c) => !c.is_favourite);
     
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarMinimized, setSidebarMinimized] = useState(false);
@@ -242,6 +249,19 @@ export default function ChatLayout({
     const [editingTitle, setEditingTitle] = useState('');
     const [deletingChatId, setDeletingChatId] = useState<number | null>(null);
     const [activeMenuChatId, setActiveMenuChatId] = useState<number | null>(null);
+    // Position of the active 3-dot dropdown, captured from the button's
+    // getBoundingClientRect() at click time. Used to render the dropdown in a
+    // portal with position:fixed so it escapes the sidebar's overflow-hidden
+    // containers (which would otherwise clip the menu vertically).
+    const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+    // Collapsible sidebar sections (Design C — Notion-style chevrons).
+    // Persisted in localStorage so the user's toggle survives reloads.
+    const [favouritesCollapsed, setFavouritesCollapsed] = useState<boolean>(() => {
+        try { return localStorage.getItem('sidebar_favs_collapsed') === '1'; } catch { return false; }
+    });
+    const [allChatsCollapsed, setAllChatsCollapsed] = useState<boolean>(() => {
+        try { return localStorage.getItem('sidebar_allchats_collapsed') === '1'; } catch { return false; }
+    });
     const dropdownRef = useRef<HTMLDivElement>(null);
     const themeDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -283,12 +303,34 @@ export default function ChatLayout({
                 const clickedInsideMenu = (menuButton && menuButton.contains(event.target as Node)) || (menuDropdown && menuDropdown.contains(event.target as Node));
                 if (!clickedInsideMenu) {
                     setActiveMenuChatId(null);
+                    setMenuPosition(null);
                 }
             }
         }
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [activeMenuChatId]);
+
+    // Close the 3-dot dropdown on scroll or resize, since its position was
+    // captured from the button's getBoundingClientRect() and becomes stale.
+    useEffect(() => {
+        if (activeMenuChatId === null) return;
+        const close = () => closeMenu();
+        window.addEventListener('scroll', close, true);
+        window.addEventListener('resize', close);
+        return () => {
+            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('resize', close);
+        };
+    }, [activeMenuChatId]);
+
+    // Persist collapse state to localStorage on change
+    useEffect(() => {
+        try {
+            localStorage.setItem('sidebar_favs_collapsed', favouritesCollapsed ? '1' : '0');
+            localStorage.setItem('sidebar_allchats_collapsed', allChatsCollapsed ? '1' : '0');
+        } catch {}
+    }, [favouritesCollapsed, allChatsCollapsed]);
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -322,9 +364,9 @@ export default function ChatLayout({
     const handleTogglePin = async (e: React.MouseEvent, chatId: number, isPinned: boolean) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        
+
         try {
             const response = await fetch(`/chat/${chatId}/pin`, {
                 method: 'POST',
@@ -333,7 +375,7 @@ export default function ChatLayout({
                     'X-CSRF-TOKEN': csrfToken,
                 },
             });
-            
+
             if (response.ok) {
                 // Reload the page to reflect changes
                 window.location.reload();
@@ -343,7 +385,34 @@ export default function ChatLayout({
         }
     };
 
-    const closeMenu = () => setActiveMenuChatId(null);
+    const handleToggleFavourite = async (e: React.MouseEvent, chatId: number, isFavourite: boolean) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        try {
+            const response = await fetch(`/chat/${chatId}/favourite`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            });
+
+            if (response.ok) {
+                // Reload to reflect sort + state changes
+                window.location.reload();
+            } else {
+                console.error('Failed to toggle favourite: HTTP', response.status);
+            }
+        } catch (error) {
+            console.error('Failed to toggle favourite:', error);
+        }
+    };
+
+    const closeMenu = () => { setActiveMenuChatId(null); setMenuPosition(null); };
 
     const handleRenameChat = async (chatId: number) => {
         if (!editingTitle.trim()) {
@@ -474,6 +543,140 @@ export default function ChatLayout({
     // The .light/.dark class on <html> drives the actual color change
     const themeClasses = 'theme-bg-app theme-text-primary';
 
+    // Render a single chat list item. Used by both Favourites and All Chats
+    // sections so we don't duplicate ~100 lines of JSX.
+    const renderChatItem = (chat: Chat) => (
+        <div key={chat.id} className={`
+            flex items-center gap-2 p-2 rounded-lg transition-all duration-200 group chat-item
+            ${currentChat?.id === chat.id ? 'bg-[rgba(102,126,234,0.15)] border border-[rgba(102,126,234,0.25)]' : 'border border-transparent hover:bg-[rgba(102,126,234,0.08)]'}
+        `} data-title={chat.title.toLowerCase()}>
+            {editingChatId === chat.id ? (
+                <form onSubmit={(e) => { e.preventDefault(); handleRenameChat(chat.id); }} className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <div className={`w-7 h-7 rounded-md flex items-center justify-center text-xs flex-shrink-0 bg-gradient-to-r from-[#667eea] to-[#764ba2]`}>
+                        {chat.title.charAt(0).toUpperCase()}
+                    </div>
+                    <input
+                        type="text"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Escape') setEditingChatId(null); }}
+                        autoFocus
+                        className={`flex-1 min-w-0 px-1.5 py-0.5 text-xs rounded-md border outline-none min-w-0 theme-bg-input theme-border theme-text-primary`}
+                    />
+                    <button type="submit" className="p-1 rounded-md bg-[rgba(102,126,234,0.2)] text-[#667eea] hover:bg-[rgba(102,126,234,0.3)]" title="Save">
+                        <Check className="w-3 h-3" />
+                    </button>
+                    <button type="button" onClick={() => setEditingChatId(null)} className="p-1 rounded-md hover:bg-[rgba(231,76,60,0.2)] text-[var(--text-muted)] hover:text-[#e74c3c]" title="Cancel">
+                        <X className="w-3 h-3" />
+                    </button>
+                </form>
+            ) : (
+                <>
+                    <a href={`/chat/${chat.id}`} className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className={`w-7 h-7 rounded-md flex items-center justify-center text-xs flex-shrink-0 ${chat.is_pinned ? 'bg-gradient-to-r from-[#f59e0b] to-[#d97706]' : 'bg-gradient-to-r from-[#667eea] to-[#764ba2]'}`}>
+                            {chat.is_pinned ? <Pin className="w-3.5 h-3.5 text-white" /> : <MessageSquare className="w-3.5 h-3.5 text-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={`text-xs font-medium truncate flex-1 min-w-0 theme-text-primary`}>
+                                    {chat.title}
+                                </span>
+                                {chat.is_favourite && <Star className="w-3 h-3 text-[#f59e0b] flex-shrink-0" fill="currentColor" strokeWidth={1.5} />}
+                                <span className={`text-[9px] theme-text-muted flex-shrink-0 whitespace-nowrap`}>{formatDate(chat.created_at)}</span>
+                            </div>
+                            {getPreviewText(chat) && (
+                                <p className={`text-[10px] truncate mt-0.5 theme-text-muted`}>{getPreviewText(chat)}</p>
+                            )}
+                        </div>
+                    </a>
+                    <div className="relative flex-shrink-0">
+                        <button
+                            data-chat-menu={chat.id}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (activeMenuChatId === chat.id) {
+                                    setActiveMenuChatId(null);
+                                    setMenuPosition(null);
+                                    return;
+                                }
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                // Position dropdown so its right edge aligns with the button's right edge,
+                                // and its top is just below the button + 4px gap.
+                                setMenuPosition({
+                                    x: Math.max(8, rect.right - 128), // 128 = w-32 dropdown width
+                                    y: rect.bottom + 4,
+                                });
+                                setActiveMenuChatId(chat.id);
+                            }}
+                            className="p-1 rounded-md opacity-40 group-hover:opacity-100 hover:!opacity-100 transition-opacity hover:bg-[rgba(102,126,234,0.15)] text-[var(--text-muted)]"
+                            aria-label="Chat options"
+                        >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+                        {activeMenuChatId === chat.id && menuPosition && createPortal(
+                            <div
+                                data-chat-dropdown={chat.id}
+                                style={{ position: 'fixed', left: menuPosition.x, top: menuPosition.y, width: '128px' }}
+                                className={`rounded-lg overflow-hidden shadow-xl z-[100] border theme-bg-card theme-border`}
+                            >
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleToggleFavourite(e, chat.id, !!chat.is_favourite);
+                                        setActiveMenuChatId(null);
+                                        setMenuPosition(null);
+                                    }}
+                                    className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[var(--text-secondary)]'}`}
+                                >
+                                    {chat.is_favourite ? <StarOff className="w-3 h-3" /> : <Star className="w-3 h-3" />}
+                                    {chat.is_favourite ? 'Unfavourite' : 'Favourite'}
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleTogglePin(e, chat.id, chat.is_pinned);
+                                        setActiveMenuChatId(null);
+                                        setMenuPosition(null);
+                                    }}
+                                    className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[var(--text-secondary)]'}`}
+                                >
+                                    {chat.is_pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
+                                    {chat.is_pinned ? 'Unpin' : 'Pin'}
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        startRename(e, chat.id, chat.title);
+                                        setActiveMenuChatId(null);
+                                        setMenuPosition(null);
+                                    }}
+                                    className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[var(--text-secondary)]'}`}
+                                >
+                                    <Edit3 className="w-3 h-3" />
+                                    Rename
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        setDeletingChatId(chat.id);
+                                        setActiveMenuChatId(null);
+                                        setMenuPosition(null);
+                                    }}
+                                    className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors hover:bg-[rgba(231,76,60,0.15)] text-[#e74c3c]`}
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                    Delete
+                                </button>
+                            </div>,
+                            document.body
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+
     return (
         <div className={`flex h-screen overflow-hidden ${themeClasses}`}>
             {/* Mobile Sidebar Overlay */}
@@ -486,9 +689,8 @@ export default function ChatLayout({
 
             {/* Sidebar */}
             <aside className={`
-                relative
-                fixed lg:relative z-50 lg:z-auto
-                w-[280px] h-full min-h-0
+                fixed lg:relative z-50 lg:z-auto left-0 top-0
+                w-[280px] sm:w-[300px] h-full min-h-0
                 theme-bg-sidebar
                 transform transition-transform duration-300 ease-out
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -570,103 +772,55 @@ export default function ChatLayout({
                             <p className="text-[11px] opacity-70">No conversations yet</p>
                         </div>
                     ) : (
-                        safeChats.map((chat) => (
-                            <div key={chat.id} className={`
-                                flex items-center gap-1.5 p-1.5 rounded-lg transition-all duration-200 group chat-item
-                                ${currentChat?.id === chat.id ? 'bg-[rgba(102,126,234,0.15)] border border-[rgba(102,126,234,0.25)]' : 'border border-transparent hover:bg-[rgba(102,126,234,0.08)]'}
-                            `} data-title={chat.title.toLowerCase()}>
-                                {editingChatId === chat.id ? (
-                                    <form onSubmit={(e) => { e.preventDefault(); handleRenameChat(chat.id); }} className="flex items-center gap-1.5 flex-1 min-w-0">
-                                        <div className={`w-7 h-7 rounded-md flex items-center justify-center text-xs flex-shrink-0 bg-gradient-to-r from-[#667eea] to-[#764ba2]`}>
-                                            ✏️
-                                        </div>
-                                        <input
-                                            type="text"
-                                            value={editingTitle}
-                                            onChange={(e) => setEditingTitle(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Escape') setEditingChatId(null);
-                                            }}
-                                            autoFocus
-                                            className={`flex-1 px-1.5 py-0.5 text-xs rounded-md border outline-none min-w-0 theme-bg-input theme-border theme-text-primary`}
-                                        />
-                                        <button type="submit" className="p-1 rounded-md bg-[rgba(102,126,234,0.2)] text-[#667eea] hover:bg-[rgba(102,126,234,0.3)]" title="Save">
-                                            <Check className="w-3 h-3" />
-                                        </button>
-                                        <button type="button" onClick={() => setEditingChatId(null)} className="p-1 rounded-md hover:bg-[rgba(231,76,60,0.2)] text-[var(--text-muted)] hover:text-[#e74c3c]" title="Cancel">
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </form>
+                        <>
+                            {/* ⭐ Favourites section — collapsible chevron (Design C) */}
+                            <button
+                                type="button"
+                                onClick={() => setFavouritesCollapsed(!favouritesCollapsed)}
+                                aria-expanded={!favouritesCollapsed}
+                                className={`w-full flex items-center justify-between gap-1.5 px-1.5 pt-1 pb-1 rounded-md transition-colors ${theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-[rgba(102,126,234,0.06)]'}`}
+                            >
+                                <div className="flex items-center gap-1.5">
+                                    <Star className="w-3 h-3 text-[#f59e0b]" fill="currentColor" />
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide theme-text-muted">
+                                        Favourites{favouriteChats.length > 0 ? ` (${favouriteChats.length})` : ''}
+                                    </span>
+                                </div>
+                                <ChevronDown className={`w-3 h-3 theme-text-muted transition-transform duration-200 ${favouritesCollapsed ? '-rotate-90' : ''}`} />
+                            </button>
+                            <div className={`overflow-hidden transition-all duration-200 ease-out ${favouritesCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'}`}>
+                                {favouriteChats.length === 0 ? (
+                                    <div className="px-2.5 py-1.5 text-[10px] theme-text-muted italic">
+                                        ⭐ Star any chat to add it here
+                                    </div>
                                 ) : (
-                                    <>
-                                        <a href={`/chat/${chat.id}`} className="flex items-center gap-2 flex-1 min-w-0">
-                                            <div className={`w-7 h-7 rounded-md flex items-center justify-center text-xs flex-shrink-0 ${chat.is_pinned ? 'bg-gradient-to-r from-[#f59e0b] to-[#d97706]' : 'bg-gradient-to-r from-[#667eea] to-[#764ba2]'}`}>
-                                                {chat.is_pinned ? '📌' : '💬'}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between">
-                                                    <span className={`text-xs font-medium truncate theme-text-primary`}>{chat.title}</span>
-                                                    <span className={`text-[9px] ml-1.5 flex-shrink-0 theme-text-muted`}>{formatDate(chat.created_at)}</span>
-                                                </div>
-                                                {getPreviewText(chat) && (
-                                                    <p className={`text-[10px] truncate mt-0.5 theme-text-muted`}>{getPreviewText(chat)}</p>
-                                                )}
-                                            </div>
-                                        </a>
-                                        <div className="relative">
-                                            <button
-                                                data-chat-menu={chat.id}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    setActiveMenuChatId(activeMenuChatId === chat.id ? null : chat.id);
-                                                }}
-                                                className="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-[rgba(102,126,234,0.15)] text-[var(--text-muted)]"
-                                            >
-                                                <MoreVertical className="w-3.5 h-3.5" />
-                                            </button>
-                                            {activeMenuChatId === chat.id && (
-                                                <div data-chat-dropdown={chat.id} className={`absolute right-0 top-full mt-1 w-32 rounded-lg overflow-hidden shadow-xl z-50 border theme-bg-card theme-border`}>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            handleTogglePin(e, chat.id, chat.is_pinned);
-                                                            setActiveMenuChatId(null);
-                                                        }}
-                                                        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[var(--text-secondary)]'}`}
-                                                    >
-                                                        {chat.is_pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
-                                                        {chat.is_pinned ? 'Unpin' : 'Pin'}
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            startRename(e, chat.id, chat.title);
-                                                            setActiveMenuChatId(null);
-                                                        }}
-                                                        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[rgba(102,126,234,0.1)] text-[var(--text-secondary)]'}`}
-                                                    >
-                                                        <Edit3 className="w-3 h-3" />
-                                                        Rename
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            setDeletingChatId(chat.id);
-                                                            setActiveMenuChatId(null);
-                                                        }}
-                                                        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] transition-colors hover:bg-[rgba(231,76,60,0.15)] text-[#e74c3c]`}
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </>
+                                    favouriteChats.map((chat) => renderChatItem(chat))
                                 )}
                             </div>
-                        ))
+
+                            {/* 💬 All Chats section — collapsible chevron, only shown when there are non-favourited chats */}
+                            {otherChats.length > 0 && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAllChatsCollapsed(!allChatsCollapsed)}
+                                        aria-expanded={!allChatsCollapsed}
+                                        className={`w-full flex items-center justify-between gap-1.5 px-1.5 pt-2.5 pb-1 rounded-md transition-colors ${theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-[rgba(102,126,234,0.06)]'}`}
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <MessageSquare className="w-3 h-3 theme-text-muted" />
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide theme-text-muted">
+                                                All Chats ({otherChats.length})
+                                            </span>
+                                        </div>
+                                        <ChevronDown className={`w-3 h-3 theme-text-muted transition-transform duration-200 ${allChatsCollapsed ? '-rotate-90' : ''}`} />
+                                    </button>
+                                    <div className={`overflow-hidden transition-all duration-200 ease-out ${allChatsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'}`}>
+                                        {otherChats.map((chat) => renderChatItem(chat))}
+                                    </div>
+                                </>
+                            )}
+                        </>
                     )}
                 </div>
 
@@ -717,7 +871,7 @@ export default function ChatLayout({
             {/* Main Content */}
             <main className={`flex-1 flex flex-col min-w-0 theme-bg-app`}>
                 {/* Header */}
-                <header className={`flex flex-wrap items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3 border-b border-[rgba(102,126,234,0.12)] rounded-t-3xl theme-bg-header`}>
+                <header className={`flex flex-wrap items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3 border-b border-[rgba(102,126,234,0.12)] sm:rounded-t-3xl theme-bg-header`}>
                     <div className="flex items-center gap-2 sm:gap-3">
 
                         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors lg:hidden">
@@ -733,6 +887,22 @@ export default function ChatLayout({
                                 className="p-2 rounded-lg hover:bg-[rgba(102,126,234,0.15)] transition-colors theme-text-secondary flex-shrink-0"
                             >
                                 <ArrowLeft className="w-4 h-4" />
+                            </button>
+                        )}
+
+                        {/* Favourite button — toggles is_favourite on the current chat */}
+                        {currentChat?.id && (
+                            <button
+                                onClick={(e) => handleToggleFavourite(e, currentChat.id, !!currentChat.is_favourite)}
+                                title={currentChat.is_favourite ? 'Remove from favourites' : 'Add to favourites'}
+                                aria-label={currentChat.is_favourite ? 'Remove from favourites' : 'Add to favourites'}
+                                className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                                    currentChat.is_favourite
+                                        ? 'text-[#f59e0b] hover:bg-[rgba(245,158,11,0.15)]'
+                                        : 'theme-text-secondary hover:bg-[rgba(102,126,234,0.15)]'
+                                }`}
+                            >
+                                {currentChat.is_favourite ? <Star className="w-4 h-4" fill="currentColor" /> : <Star className="w-4 h-4" />}
                             </button>
                         )}
 
@@ -924,7 +1094,7 @@ export function AgentSelector({
                     ${isOpen ? 'border-[#667eea] shadow-lg shadow-[rgba(102,126,234,0.2)]' : ''}
                     ${themeVal === 'light' ? 'theme-bg-glass border-[var(--border-color)] hover:border-[#667eea] shadow-sm' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[#667eea] shadow-sm'}
                 `}
-                style={{ width: '180px', height: '44px', boxSizing: 'border-box' }}
+                style={{ width: '100%', maxWidth: '220px', height: '44px', boxSizing: 'border-box' }}
             >
                 <div className={`w-7 h-7 rounded-lg bg-gradient-to-r ${getProviderGradient(selectedAgent?.provider ?? 'openai')} flex items-center justify-center flex-shrink-0`}>
                     <ProviderIcon provider={selectedAgent?.provider ?? 'openai'} size={16} color="#ffffff" />
@@ -967,16 +1137,13 @@ export function AgentSelector({
                         </>
                     )}
 
-                    {/* Admin default when user has no agents */}
-                    {safeAgents.length === 0 && adminDefaultAgent && (
-                        <>
-                            {renderGroupLabel("ThinkChat's Default")}
-                            {renderAgentButton(adminDefaultAgent)}
-                        </>
+                    {/* Admin default when user has no agents — single option, no group label (just clutter when alone) */}
+                    {userAgents.length === 0 && adminDefaultAgent && (
+                        <>{renderAgentButton(adminDefaultAgent)}</>
                     )}
 
                     {/* No agents at all */}
-                    {safeAgents.length === 0 && !adminDefaultAgent && (
+                    {userAgents.length === 0 && !adminDefaultAgent && (
                         <div className={`px-2.5 py-4 text-xs text-center ${themeVal === 'light' ? 'text-gray-400' : 'text-[var(--text-muted)]'}`}>
                             No agents configured
                         </div>
@@ -1155,7 +1322,7 @@ export function ModelSelector({
                         ? 'theme-bg-glass border-[var(--border-color)] hover:border-[#667eea] shadow-sm'
                         : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[#667eea] shadow-sm'}
                 `}
-                style={{ width: '180px', height: '44px', boxSizing: 'border-box' }}
+                style={{ width: '100%', maxWidth: '180px', height: '44px', boxSizing: 'border-box' }}
             >
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     isError
@@ -1545,7 +1712,7 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
     if (!hasText && !hasImages && !hasGeneratedImages && !hasFiles) return null;
 
     return (
-        <div className={`flex flex-col ${isUser ? 'items-end self-end' : 'items-start self-start'} mx-3 sm:mx-5 md:mx-8`}>
+        <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} mx-3 sm:mx-5 md:mx-8`}>
             {/* Render image attachments */}
             {hasImages && (
                 <div className={`flex flex-wrap gap-2 ${hasText ? 'mb-2' : ''}`}>
@@ -1621,7 +1788,7 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
             {/* Only show message bubble if there's actual text */}
             {hasText && (
                 <div className={`
-                    px-3 py-1.5 rounded-xl text-sm leading-relaxed
+                    px-3 py-1.5 rounded-xl text-sm leading-relaxed break-words overflow-wrap-anywhere max-w-[85vw] sm:max-w-[75%]
                     ${isUser ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md shadow-lg shadow-[rgba(102,126,234,0.2)]' : (themeVal === 'light' ? 'bg-white text-gray-800 border border-gray-200 rounded-bl-md' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-color)] rounded-bl-md')}
                 `}>
                     {formattedContent}
@@ -1652,7 +1819,7 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
 // Typing Indicator
 export function TypingIndicator() {
     return (
-        <div className="flex items-start self-start max-w-[75%]">
+        <div className="flex items-start self-start max-w-[75vw] sm:max-w-[75%]">
             <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-[var(--bg-secondary)] border border-[var(--border-color)]">
                 <div className="flex gap-1">
                     <span className="w-2 h-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

@@ -27,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/chat', [ChatController::class, 'store']);
     Route::post('/chat/{id}', [ChatController::class, 'sendMessage']);
     Route::post('/chat/{id}/pin', [ChatController::class, 'togglePin']);
+    Route::post('/chat/{id}/favourite', [ChatController::class, 'toggleFavourite']);
     Route::post('/chat/{id}/rename', [ChatController::class, 'rename']);
     Route::delete('/chat/{id}', [ChatController::class, 'destroy'])->name('chat.destroy');
 
@@ -71,6 +72,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/providers/{id}', [AdminController::class, 'updateProvider'])->name('providers.update');
     Route::post('/providers/{id}/set-default', [AdminController::class, 'setDefaultProvider'])->name('providers.setDefault');
     Route::post('/providers/{id}/toggle-active', [AdminController::class, 'toggleProviderActive'])->name('providers.toggleActive');
+    Route::post('/providers/{id}/test-connection', [AdminController::class, 'testProviderConnection'])->name('providers.testConnection');
     Route::post('/providers/default/remove', [AdminController::class, 'removeDefaultProvider'])->name('providers.removeDefault');
     Route::get('/settings', [AdminController::class, 'allSettings'])->name('settings');
 });

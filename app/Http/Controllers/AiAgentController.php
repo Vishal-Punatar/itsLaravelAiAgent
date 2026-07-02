@@ -18,13 +18,16 @@ class AiAgentController extends Controller
             'is_default' => $a->is_default,
         ]);
         $chats = $user->chats()
-            ->orderByDesc('created_at')
+            ->orderByRaw('is_favourite DESC, COALESCE(favourited_at, "1970-01-01") DESC, is_pinned DESC, COALESCE(pinned_order, 999999) ASC, updated_at DESC')
             ->limit(20)
             ->get()
             ->map(fn($c) => [
                 'id' => $c->id,
                 'title' => $c->title,
                 'created_at' => $c->created_at->toIso8601String(),
+                'is_favourite' => (bool) $c->is_favourite,
+                'is_pinned' => (bool) $c->is_pinned,
+                'favourited_at' => $c->favourited_at?->toIso8601String() ?? null,
             ]);
         return [
             'agents' => $agents,

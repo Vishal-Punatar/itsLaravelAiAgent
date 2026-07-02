@@ -29,6 +29,9 @@ class ProfileController extends Controller
                 'id' => $c->id,
                 'title' => $c->title,
                 'created_at' => $c->created_at->toIso8601String(),
+                'is_favourite' => (bool) $c->is_favourite,
+                'is_pinned' => (bool) $c->is_pinned,
+                'favourited_at' => $c->favourited_at?->toIso8601String() ?? null,
             ]);
         $stats = [
             'total_chats' => $user->chats()->count(),

@@ -15,6 +15,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('title')->default('New Chat');
+            $table->boolean('is_pinned')->default(false);
+            $table->integer('pinned_order')->nullable();
+            $table->boolean('is_favourite')->default(false);
+            $table->timestamp('favourited_at')->nullable();
             $table->timestamps();
         });
 

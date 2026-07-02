@@ -530,7 +530,7 @@ class ChatController extends Controller
     public function togglePin($id)
     {
         $chat = Chat::where('user_id', auth()->id())->findOrFail($id);
-        
+
         if ($chat->is_pinned) {
             $chat->update(['is_pinned' => false, 'pinned_order' => null]);
             return response()->json(['success' => true, 'pinned' => false]);
@@ -538,6 +538,27 @@ class ChatController extends Controller
             $maxOrder = Chat::where('user_id', auth()->id())->where('is_pinned', true)->max('pinned_order') ?? 0;
             $chat->update(['is_pinned' => true, 'pinned_order' => $maxOrder + 1]);
             return response()->json(['success' => true, 'pinned' => true]);
+        }
+    }
+
+    public function toggleFavourite($id)
+    {
+        $chat = Chat::where('user_id', auth()->id())->findOrFail($id);
+
+        if ($chat->is_favourite) {
+            $chat->update(['is_favourite' => false, 'favourited_at' => null]);
+            return response()->json([
+                'success' => true,
+                'favourited' => false,
+                'favourited_at' => null,
+            ]);
+        } else {
+            $chat->update(['is_favourite' => true, 'favourited_at' => now()]);
+            return response()->json([
+                'success' => true,
+                'favourited' => true,
+                'favourited_at' => $chat->favourited_at->toISOString(),
+            ]);
         }
     }
 

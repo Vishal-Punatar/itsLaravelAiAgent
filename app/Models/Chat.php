@@ -11,7 +11,13 @@ class Chat extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'title', 'is_pinned', 'pinned_order'];
+    protected $fillable = ['user_id', 'title', 'is_pinned', 'pinned_order', 'is_favourite', 'favourited_at'];
+
+    protected $casts = [
+        'is_pinned' => 'boolean',
+        'is_favourite' => 'boolean',
+        'favourited_at' => 'datetime',
+    ];
 
     public function user(): BelongsTo
     {

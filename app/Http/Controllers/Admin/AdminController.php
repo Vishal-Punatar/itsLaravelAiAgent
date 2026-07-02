@@ -10,6 +10,8 @@ use App\Models\ChatMessage;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
@@ -181,6 +183,138 @@ class AdminController extends Controller
         $provider->save();
 
         return response()->json(['success' => true, 'message' => $provider->name . ' updated successfully.']);
+    }
+
+    /**
+     * Test a provider's API key by hitting its live /models endpoint.
+     * Accepts an unsaved candidate key from the form (so user can verify
+     * BEFORE saving to DB). If no candidate is provided, uses the saved key.
+     */
+    public function testProviderConnection(Request $request, $id)
+    {
+        $provider = AdminAiAgent::findOrFail($id);
+
+        $candidate = trim((string) $request->input('api_key', ''));
+        $apiKey = $candidate !== '' ? $candidate : ($provider->decrypted_api_key ?? null);
+
+        if (empty($apiKey)) {
+            return response()->json([
+                'success' => false,
+                'ok' => false,
+                'message' => 'No API key provided. Enter a key or save one first.',
+            ], 422);
+        }
+
+        try {
+            $models = match ($provider->provider) {
+                'openai'    => $this->testOpenAi($apiKey),
+                'anthropic' => $this->testAnthropic($apiKey),
+                'gemini'    => $this->testGemini($apiKey),
+                'groq'      => $this->testGroq($apiKey),
+                'xai'       => $this->testXai($apiKey),
+                'deepseek'  => $this->testDeepSeek($apiKey),
+                'mistral'   => $this->testMistral($apiKey),
+                default     => null,
+            };
+
+            if ($models === null) {
+                return response()->json([
+                    'success' => false,
+                    'ok' => false,
+                    'message' => "No live test endpoint for provider '{$provider->provider}'. Check the key manually.",
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'ok' => true,
+                'provider' => $provider->provider,
+                'count' => count($models),
+                'models' => $models,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Provider test connection error', [
+                'provider' => $provider->provider,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'ok' => false,
+                'message' => 'Test failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function testOpenAi(string $key): ?array
+    {
+        $r = Http::withToken($key)->get('https://api.openai.com/v1/models');
+        if (!$r->successful()) return $this->failFromResponse('OpenAI', $r);
+        return collect($r->json('data', []))->pluck('id')->sort()->values()->toArray();
+    }
+
+    private function testAnthropic(string $key): ?array
+    {
+        $r = Http::withHeaders([
+            'x-api-key' => $key,
+            'anthropic-version' => '2023-06-01',
+        ])->get('https://api.anthropic.com/v1/models');
+        if (!$r->successful()) return $this->failFromResponse('Anthropic', $r);
+        return collect($r->json('data', []))->pluck('id')->sort()->values()->toArray();
+    }
+
+    private function testGemini(string $key): ?array
+    {
+        $r = Http::get('https://generativelanguage.googleapis.com/v1beta/models', [
+            'key' => $key,
+        ]);
+        if (!$r->successful()) return $this->failFromResponse('Gemini', $r);
+        $names = collect($r->json('models', []))
+            ->map(fn ($m) => str_replace('models/', '', $m['name'] ?? ''))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+        return $names->toArray();
+    }
+
+    private function testGroq(string $key): ?array
+    {
+        $r = Http::withToken($key)->get('https://api.groq.com/openai/v1/models');
+        if (!$r->successful()) return $this->failFromResponse('Groq', $r);
+        return collect($r->json('data', []))->pluck('id')->sort()->values()->toArray();
+    }
+
+    private function testXai(string $key): ?array
+    {
+        $r = Http::withToken($key)->get('https://api.x.ai/v1/models');
+        if (!$r->successful()) return $this->failFromResponse('xAI', $r);
+        return collect($r->json('data', []))->pluck('id')->sort()->values()->toArray();
+    }
+
+    private function testDeepSeek(string $key): ?array
+    {
+        $r = Http::withToken($key)->get('https://api.deepseek.com/v1/models');
+        if (!$r->successful()) return $this->failFromResponse('DeepSeek', $r);
+        return collect($r->json('data', []))->pluck('id')->sort()->values()->toArray();
+    }
+
+    private function testMistral(string $key): ?array
+    {
+        $r = Http::withToken($key)->get('https://api.mistral.ai/v1/models');
+        if (!$r->successful()) return $this->failFromResponse('Mistral', $r);
+        return collect($r->json('data', []))->pluck('id')->sort()->values()->toArray();
+    }
+
+    /**
+     * Used inside fetchers above: returns null and lets the controller catch the
+     * response body so the user sees the actual API error message.
+     */
+    private function failFromResponse(string $provider, $response): ?array
+    {
+        $status = $response->status();
+        $body = $response->json();
+        $msg = $body['error']['message'] ?? $body['error'] ?? $response->body() ?? "HTTP {$status}";
+        throw new \RuntimeException("[{$provider}] {$msg}");
     }
 
 

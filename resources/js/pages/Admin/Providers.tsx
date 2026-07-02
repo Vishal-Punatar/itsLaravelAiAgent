@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, ArrowLeft, CheckCircle2, XCircle, Save, Star, Eye, EyeOff, Settings, X, Trash2, Power } from 'lucide-react';
+import { Bot, ArrowLeft, CheckCircle2, XCircle, Save, Star, Eye, EyeOff, Settings, X, Trash2, Power, Zap, Loader2 } from 'lucide-react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
 
 interface Provider {
@@ -23,6 +23,8 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
     const [settingDefault, setSettingDefault] = useState(false);
     const [togglingId, setTogglingId] = useState<number | null>(null);
     const [showApiKey, setShowApiKey] = useState(false);
+    const [testing, setTesting] = useState(false);
+    const [testResult, setTestResult] = useState<{ ok: boolean; message: string; models?: string[] } | null>(null);
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -69,6 +71,47 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
             })
             .catch(() => showToast('error', 'Something went wrong.'))
             .finally(() => setSaving(false));
+    };
+
+    // Test the (possibly unsaved) API key against the provider's live /models endpoint.
+    // Lets the user verify the key works BEFORE saving it to the DB.
+    const handleTestConnection = async () => {
+        if (!editProvider) return;
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        setTesting(true);
+        setTestResult(null);
+        try {
+            const res = await fetch(`/admin/providers/${editProvider.id}/test-connection`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ api_key: editProvider.api_key ?? '' }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+                const sample = (data.models ?? []).slice(0, 5).join(', ');
+                const more = (data.models?.length ?? 0) > 5 ? `, +${data.models.length - 5} more` : '';
+                setTestResult({
+                    ok: true,
+                    message: `✓ Connection works — found ${data.count} models${sample ? ` (${sample}${more})` : ''}`,
+                    models: data.models,
+                });
+                showToast('success', `Found ${data.count} models`);
+            } else {
+                setTestResult({ ok: false, message: `✗ ${data.message || 'Connection failed.'}` });
+                showToast('error', data.message || 'Connection failed.');
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Network error';
+            setTestResult({ ok: false, message: `✗ ${msg}` });
+            showToast('error', msg);
+        } finally {
+            setTesting(false);
+        }
     };
 
     const handleSetDefault = (provider: Provider) => {
@@ -243,7 +286,7 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                                 {/* Action Buttons */}
                                 <div className="flex items-center gap-2">
                                     <button
-                                        onClick={() => setEditProvider({ ...provider })}
+                                        onClick={() => { setEditProvider({ ...provider }); setTestResult(null); }}
                                         className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
                                             provider.is_configured
                                                 ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-white hover:border-[rgba(102,126,234,0.4)]'
@@ -297,7 +340,7 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                     {/* Backdrop */}
                     <div
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setEditProvider(null)}
+                        onClick={() => { setEditProvider(null); setTestResult(null); }}
                     />
 
                     {/* Modal */}
@@ -314,7 +357,7 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => setEditProvider(null)}
+                                    onClick={() => { setEditProvider(null); setTestResult(null); }}
                                     className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.05)] transition-colors text-[#666] hover:text-white"
                                 >
                                     <X className="w-5 h-5" />
@@ -358,6 +401,40 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                                     </div>
                                     <p className="text-xs text-[#555]">Stored encrypted. Leave blank or click remove to clear.</p>
                                 </div>
+
+                                {/* Test Connection */}
+                                <div className="space-y-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleTestConnection}
+                                        disabled={testing || !(editProvider.api_key ?? '').trim()}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-sm font-medium text-[#ccc] hover:text-white hover:border-[#667eea] hover:bg-[rgba(102,126,234,0.08)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {testing ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Testing…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Zap className="w-4 h-4" />
+                                                Test Connection
+                                            </>
+                                        )}
+                                    </button>
+                                    {testResult && (
+                                        <div className={`p-3 rounded-xl border text-xs ${
+                                            testResult.ok
+                                                ? 'bg-[rgba(34,197,94,0.08)] border-[rgba(34,197,94,0.3)] text-[#86efac]'
+                                                : 'bg-[rgba(239,68,68,0.08)] border-[rgba(239,68,68,0.3)] text-[#fca5a5]'
+                                        }`}>
+                                            {testResult.message}
+                                        </div>
+                                    )}
+                                    <p className="text-xs text-[#555]">
+                                        Verifies the key against the provider's live API. Use before saving.
+                                    </p>
+                                </div>
                             </div>
 
                             {/* Modal Footer */}
@@ -371,7 +448,7 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                                     {saving ? 'Saving...' : 'Save Changes'}
                                 </button>
                                 <button
-                                    onClick={() => setEditProvider(null)}
+                                    onClick={() => { setEditProvider(null); setTestResult(null); }}
                                     className="px-5 py-2.5 rounded-xl text-sm font-medium text-[#888] hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors"
                                 >
                                     Cancel
