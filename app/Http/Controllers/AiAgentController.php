@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiAgent;
+use App\Support\AdminDefaultProvider;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -39,6 +40,10 @@ class AiAgentController extends Controller
                 'is_admin' => $user->is_admin,
                 'theme' => $user->theme ?? 'system',
             ],
+            // Drives the "New Chat" button in the ChatLayout sidebar. Button
+            // is enabled when the user has agents OR the admin default has
+            // an API key configured (so brand-new users can chat immediately).
+            'adminDefaultProvider' => AdminDefaultProvider::payload(),
         ];
     }
 
@@ -88,6 +93,9 @@ class AiAgentController extends Controller
         ]);
 
         Inertia::flash('success', 'Agent "' . $agent->name . '" created successfully.');
+
+
+
         return redirect()->route('ai-agents.index');
     }
 
@@ -141,6 +149,9 @@ class AiAgentController extends Controller
         $aiAgent->update($updateData);
 
         Inertia::flash('success', 'Agent "' . $aiAgent->name . '" updated successfully.');
+
+
+
         return redirect()->route('ai-agents.index');
     }
 

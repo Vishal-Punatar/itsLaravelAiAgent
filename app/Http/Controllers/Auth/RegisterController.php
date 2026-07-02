@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\AiAgent;
-use App\Models\AdminAiAgent;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -38,16 +36,12 @@ class RegisterController extends Controller
             'is_admin' => $isFirstUser,
         ]);
 
-        // Auto-create an AI agent using the admin's default provider
-        $adminDefault = AdminAiAgent::getDefault();
-        if ($adminDefault) {
-            AiAgent::create([
-                'user_id' => $user->id,
-                'name' => $adminDefault->name . ' Agent',
-                'provider' => $adminDefault->provider,
-                'is_default' => true,
-            ]);
-        }
+        // NOTE: We intentionally do NOT auto-create a default AI agent here.
+        // Previously this code copied the admin's default provider config into
+        // a new user-owned AiAgent, but without an API key the agent was
+        // unusable — the user would see "Model error" on every chat attempt
+        // until they manually added their own API key via /ai-agents/create.
+        // Users now start with zero agents and add their own via the UI.
 
         auth()->login($user);
 

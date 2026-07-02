@@ -726,7 +726,7 @@ export default function ChatLayout({
 
                     {/* Actions */}
                     <div className="p-2 space-y-1.5">
-                    {safeAgents.length > 0 ? (
+                    {safeAgents.length > 0 || adminDefaultProvider?.has_api_key ? (
                         <a href="/chat" className="flex items-center justify-center gap-1.5 w-full py-2 px-3 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white font-medium text-xs shadow-md shadow-[rgba(102,126,234,0.3)] hover:shadow-lg hover:-translate-y-0.5 transition-all">
                             <Plus className="w-3.5 h-3.5" /> New Chat
                         </a>
@@ -1680,29 +1680,66 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
         return formatMessage(message.message);
     }, [message.message]);
 
+    // Normalize attachments to a typed array. The DB column is cast to
+    // 'array' but legacy rows may be double-encoded JSON strings (e.g.
+    // attachments = '[{"name":...}]' as a string instead of an array).
+    // Without this guard, message.attachments?.filter() would crash because
+    // strings don't have a .filter() method.
+    const normalizedAttachments: Attachment[] = useMemo(() => {
+        let atts: any = message.attachments;
+        // Double-encoded JSON: cast returned a string instead of an array.
+        if (typeof atts === 'string') {
+            try {
+                atts = JSON.parse(atts);
+                // Second decode if it's still a string after first parse.
+                if (typeof atts === 'string') {
+                    atts = JSON.parse(atts);
+                }
+            } catch {
+                return [];
+            }
+        }
+        // Single object (legacy generated-image shape or malformed data):
+        // wrap in an array if it has any expected attachment keys.
+        if (atts && !Array.isArray(atts) && typeof atts === 'object') {
+            // Generated-image payload shape: {type:'image', images:[...]}.
+            // Leave as-is; the generatedImages IIFE below handles it.
+            if (atts.type === 'image') return [];
+            atts = [atts];
+        }
+        return Array.isArray(atts) ? atts : [];
+    }, [message.attachments]);
+
     // Filter image attachments (uploaded files)
-    const imageAttachments = message.attachments?.filter(
+    const imageAttachments = normalizedAttachments.filter(
         (att) => att.mime && att.mime.startsWith('image/')
-    ) || [];
-    
+    );
+
     // Filter generated images (stored in attachments with type='image')
     const generatedImages = (() => {
-        const atts = message.attachments;
+        const atts: any = message.attachments;
         if (!atts) return [];
-        if (Array.isArray(atts)) {
-            const typed = atts as AttachmentWithType[];
-            for (const att of typed) {
-                if (att.type === 'image' && att.images) {
-                    return att.images;
-                }
+        // Unwrap double-encoded JSON so the type check below works.
+        let candidate: any = atts;
+        if (typeof candidate === 'string') {
+            try {
+                candidate = JSON.parse(candidate);
+                if (typeof candidate === 'string') candidate = JSON.parse(candidate);
+            } catch {
+                return [];
             }
+        }
+        if (candidate && !Array.isArray(candidate) && typeof candidate === 'object'
+            && (candidate as AttachmentWithType).type === 'image'
+            && (candidate as AttachmentWithType).images) {
+            return (candidate as AttachmentWithType).images || [];
         }
         return [];
     })();
-    
-    const fileAttachments = message.attachments?.filter(
+
+    const fileAttachments = normalizedAttachments.filter(
         (att) => att.mime && !att.mime.startsWith('image/')
-    ) || [];
+    );
 
     const hasText = message.message.trim().length > 0;
     const hasImages = imageAttachments.length > 0;

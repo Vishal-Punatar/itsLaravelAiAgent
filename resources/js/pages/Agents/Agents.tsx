@@ -25,13 +25,20 @@ interface User {
     theme?: 'light' | 'dark' | 'system';
 }
 
+interface AdminDefaultProvider {
+    provider: string;
+    name: string;
+    has_api_key: boolean;
+}
+
 interface AgentsPageProps {
     agents: Agent[];
     chats: Chat[];
     user: User;
+    adminDefaultProvider?: AdminDefaultProvider | null;
 }
 
-export default function AgentsPage({ agents, chats, user }: AgentsPageProps) {
+export default function AgentsPage({ agents, chats, user, adminDefaultProvider }: AgentsPageProps) {
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(
         (() => {
             try {
@@ -52,8 +59,14 @@ export default function AgentsPage({ agents, chats, user }: AgentsPageProps) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
             });
-            if (response.ok) window.location.reload();
-        } catch (error) { console.error('Failed to set default:', error); }
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                setDeleteMessage({ text: 'Failed to set default agent.', type: 'error' });
+            }
+        } catch (error) {
+            setDeleteMessage({ text: 'Failed to set default agent.', type: 'error' });
+        }
     };
 
     const handleDelete = async (agentId: number) => {
@@ -91,18 +104,18 @@ export default function AgentsPage({ agents, chats, user }: AgentsPageProps) {
     }, [deleteMessage]);
 
     return (
-        <ChatLayout agents={agents} chats={chats} user={user} theme={theme}>
+        <ChatLayout agents={agents} chats={chats} user={user} theme={theme} adminDefaultProvider={adminDefaultProvider}>
+            {/* Single source of truth for response messages on this page.
+                - Override fires for client-side actions like delete (fetch
+                  follows the controller's 302 redirect and consumes the
+                  server flash, so we render a toast from local state instead).
+                - Without an override, FlashBanner reads page.props.flash
+                  (set by the controller via Inertia::flash() — survives the
+                  redirect for create/update because router.post/put preserves
+                  Inertia session state). */}
+            <FlashBanner variant="toast" override={deleteMessage ? { type: deleteMessage.type, message: deleteMessage.text } : null} />
             <div className="flex-1 overflow-y-auto p-4 md:p-5 theme-bg-app">
                 <div className="max-w-4xl mx-auto">
-                    {/* Flash message from controller (success/error on save) */}
-                    <FlashBanner className="mb-3" />
-
-                    {/* Delete success/error message */}
-                    {deleteMessage && (
-                        <div className={`mb-3 px-4 py-2.5 rounded-lg text-sm font-medium ${deleteMessage.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                            {deleteMessage.text}
-                        </div>
-                    )}
 
                     {/* Page Header */}
                     <div className="rounded-xl p-3 mb-3 theme-bg-card theme-border">

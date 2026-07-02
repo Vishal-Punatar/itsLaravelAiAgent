@@ -33,8 +33,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // available to Inertia as `page.props.errors`. Without this, errors
         // are silently dropped on Inertia form submissions and the user
         // never sees validation feedback.
+        //
+        // We register our HandleInertiaRequests subclass (not the bare
+        // \Inertia\Middleware) so the typed `flash` prop — shape
+        // `{type, message}` for toast messages — is also shared with all
+        // Inertia responses.
         $middleware->web(append: [
-            \Inertia\Middleware::class,
+            \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

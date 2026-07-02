@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Bot, ArrowLeft, CheckCircle2, XCircle, Save, Star, Eye, EyeOff, Settings, X, Trash2, Power, Zap, Loader2 } from 'lucide-react';
+import { Bot, ArrowLeft, Save, Star, Eye, EyeOff, Settings, X, Trash2, Power, Zap, Loader2 } from 'lucide-react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
+import FlashBanner from '@/components/FlashBanner';
 
 interface Provider {
     id: number | null;
@@ -25,13 +26,12 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
     const [showApiKey, setShowApiKey] = useState(false);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string; models?: string[] } | null>(null);
-    const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [overrideFlash, setOverrideFlash] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; message: string } | null>(null);
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const showToast = (type: 'success' | 'error', message: string) => {
-        setToast({ type, message });
-        setTimeout(() => setToast(null), 3500);
+        setOverrideFlash({ type, message });
     };
 
     const saveProvider = () => {
@@ -187,15 +187,7 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
 
     return (
         <div className="p-6 space-y-6 max-w-6xl mx-auto">
-            {toast && (
-                <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm ${
-                    toast.type === 'success' ? 'bg-green-500/15 border-green-500/30 text-green-400'
-                        : 'bg-red-500/15 border-red-500/30 text-red-400'
-                }`}>
-                    {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
-                    <span>{toast.message}</span>
-                </div>
-            )}
+            <FlashBanner variant="toast" override={overrideFlash} />
 
             {/* Header */}
             <div className="flex items-center justify-between">

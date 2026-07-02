@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Bot, ArrowLeft, Loader2, XCircle, X, CheckCircle2 } from 'lucide-react';
+import { Bot, ArrowLeft, Loader2 } from 'lucide-react';
 import ChatLayout from '@/components/ChatLayout';
 import ProviderIcon, { getProviderGradient, PROVIDER_LABELS } from '@/components/ProviderIcon';
 import FlashBanner from '@/components/FlashBanner';
+import { router } from '@inertiajs/react';
 
 interface Agent {
     id: number;
@@ -25,12 +26,19 @@ interface User {
     theme?: 'light' | 'dark' | 'system';
 }
 
+interface AdminDefaultProvider {
+    provider: string;
+    name: string;
+    has_api_key: boolean;
+}
+
 interface AgentFormProps {
     agent?: Agent;
     agents: Agent[];
     chats: Chat[];
     user: User;
     isEdit?: boolean;
+    adminDefaultProvider?: AdminDefaultProvider | null;
 }
 
 const providers = [
@@ -47,7 +55,7 @@ const providers = [
     { value: 'openrouter', label: 'OpenRouter' },
 ];
 
-export default function AgentForm({ agent, agents, chats, user, isEdit = false }: AgentFormProps) {
+export default function AgentForm({ agent, agents, chats, user, isEdit = false, adminDefaultProvider }: AgentFormProps) {
 
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(
         (() => {
@@ -64,7 +72,10 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
     const [isDefault, setIsDefault] = useState(agent?.is_default ?? false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState(false);
-    const [successMessage, setSuccessMessage] = useState('');
+    // Toast override for non-validation response messages (success, network
+    // error, 5xx). Validation errors flow through `errors` and render as
+    // field-level only — never as a toast. Rendered by <FlashBanner /> below.
+    const [overrideFlash, setOverrideFlash] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; message: string } | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -72,91 +83,67 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
         // Guard: in edit mode we need the agent id, otherwise the URL becomes
         // /ai-agents/undefined and Laravel returns 404/405.
         if (isEdit && !agent?.id) {
-            setErrors({ general: 'Missing agent id. Please refresh the page and try again.' });
+            setOverrideFlash({ type: 'error', message: 'Missing agent id. Please refresh the page and try again.' });
             return;
         }
 
         setSaving(true);
         setErrors({});
-        setSuccessMessage('');
+        setOverrideFlash(null);
 
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const url = isEdit ? `/ai-agents/${agent!.id}` : '/ai-agents';
 
-        // Use a plain fetch + form-encoded body. We avoid Inertia's router.post
-        // because:
-        //   1. router.post sends JSON which Laravel Inertia handles differently
-        //   2. Inertia::location() returns 409 which triggers a hard navigation
-        //      that unmounts the form before onSuccess fires (so no banner)
-        //   3. redirect() (302) followed by XHR also races with the flash
+        // Build payload — router.post() sends JSON which Laravel handles
+        // transparently via $request->validate(). For PUT updates we use
+        // router.put() so we don't need the form-encoded _method spoof.
+        const data: Record<string, string> = {
+            name,
+            provider,
+            is_default: isDefault ? '1' : '0',
+        };
+        if (apiKey) data.api_key = apiKey;
+
+        // Use Inertia's router so the controller's 302 redirect to /ai-agents
+        // is handled client-side: Inertia follows the redirect and the list
+        // page's <FlashBanner /> reads the Inertia::flash() message set by
+        // the controller. Plain fetch() would follow the 302 transparently
+        // and consume the flash in its own response — the subsequent
+        // window.location.href would land on the list page WITHOUT the flash,
+        // causing the success toast to never appear.
         //
-        // The reliable path is: POST with form-encoded body + _method=PUT,
-        // let the server set Inertia::flash() and return a normal redirect
-        // to /ai-agents. The browser follows it, the list page loads, and
-        // FlashBanner reads the flash from page.props.flash.
-        const body = new URLSearchParams();
-        body.set('_token', csrfToken);
-        body.set('_method', isEdit ? 'PUT' : 'POST');
-        body.set('name', name);
-        body.set('provider', provider);
-        if (apiKey) body.set('api_key', apiKey);
-        body.set('is_default', isDefault ? '1' : '0');
-
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Accept': 'text/html, application/xhtml+xml, application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: body.toString(),
-                redirect: 'follow',
-            });
-
-            // 422 = validation error (Laravel returns JSON for XHR with errors)
-            if (response.status === 422) {
-                try {
-                    const data = await response.json();
-                    setErrors(data.errors || { general: data.message || 'Validation failed.' });
-                } catch {
-                    setErrors({ general: 'Validation failed. Please check the form.' });
+        // NOTE: We CAN'T do `const submit = router.put` here — Inertia's router
+        // methods internally call `this.visit(...)`, so extracting them loses
+        // the `this` binding and crashes with "Cannot read properties of
+        // undefined (reading 'visit')". Always call them via `router.put(...)`
+        // or `router.post(...)` directly.
+        const visitOptions = {
+            preserveScroll: true,
+            onSuccess: () => {
+                // Inertia auto-navigates to the controller's redirect target
+                // (/ai-agents). Form unmounts, list page mounts, FlashBanner
+                // renders the success toast from page.props.flash.
+            },
+            onError: (errors: Record<string, string | string[]>) => {
+                // Validation errors (422) land here with field-level shape.
+                // Render inline below each input; never as a toast.
+                if (errors && Object.keys(errors).length > 0) {
+                    const arr: Record<string, string> = {};
+                    for (const [k, v] of Object.entries(errors)) {
+                        arr[k] = Array.isArray(v) ? String(v[0]) : String(v);
+                    }
+                    setErrors(arr);
+                } else {
+                    setOverrideFlash({ type: 'error', message: 'Something went wrong. Please try again.' });
                 }
                 setSaving(false);
-                return;
-            }
+            },
+            onFinish: () => setSaving(false),
+        };
 
-            // 2xx success
-            if (response.ok) {
-                // Show inline success on the form first (guaranteed visible),
-                // then follow the redirect. The flash is in session and will
-                // be consumed by the list page's Inertia response.
-                setSuccessMessage(
-                    isEdit
-                        ? `Agent "${name}" updated successfully.`
-                        : `Agent "${name}" created successfully.`
-                );
-                setSaving(false);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                // Follow the redirect after 1.5s so the user can read the message
-                setTimeout(() => {
-                    window.location.href = '/ai-agents';
-                }, 1500);
-                return;
-            }
-
-            // 4xx / 5xx other than 422
-            let msg = `Server error (${response.status}). Please try again.`;
-            try {
-                const data = await response.json();
-                if (data?.message) msg = data.message;
-            } catch { /* not JSON, keep default msg */ }
-            setErrors({ general: msg });
-            setSaving(false);
-        } catch (err) {
-            setErrors({ general: 'Network error. Please check your connection and try again.' });
-            setSaving(false);
+        if (isEdit) {
+            router.put(url, data, visitOptions);
+        } else {
+            router.post(url, data, visitOptions);
         }
     };
 
@@ -169,7 +156,7 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
     const selectedProvider = providers.find(p => p.value === provider) || providers[0];
 
     return (
-        <ChatLayout agents={agents} chats={chats} user={user} theme={theme}>
+        <ChatLayout agents={agents} chats={chats} user={user} theme={theme} adminDefaultProvider={adminDefaultProvider}>
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 <div className="max-w-xl mx-auto px-2 sm:px-0">
                     {/* Back Link */}
@@ -197,27 +184,11 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false }
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Inline success message (shown after save, before redirect) */}
-                            {successMessage && (
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-400 text-xs font-medium">
-                                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                                    <span className="flex-1">{successMessage}</span>
-                                </div>
-                            )}
-
-                            {/* Server-side flash (e.g. error from previous failed submit) */}
-                            <FlashBanner />
-
-                            {/* General client error (network, 500, etc.) */}
-                            {errors.general && (
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/15 text-red-400 text-xs font-medium">
-                                    <XCircle className="w-4 h-4 flex-shrink-0" />
-                                    <span className="flex-1">{errors.general}</span>
-                                    <button type="button" onClick={() => setErrors(e => ({ ...e, general: '' }))} className="opacity-70 hover:opacity-100">
-                                        <X className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                            )}
+                            {/* Toast for non-validation errors only (network failures,
+                                5xx). Success is shown on the list page after redirect
+                                via Inertia::flash() from the controller. Validation
+                                errors render as field-level only, below each input. */}
+                            <FlashBanner variant="toast" override={overrideFlash} />
 
                             {/* Agent Name */}
                             <div>

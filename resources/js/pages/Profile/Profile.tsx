@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Sun, Moon, Monitor, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
+import { Sun, Moon, Monitor, Eye, EyeOff } from 'lucide-react';
 import ChatLayout from '@/components/ChatLayout';
-import { Head, router } from '@inertiajs/react';
+import FlashBanner from '@/components/FlashBanner';
+import { Head, router, usePage } from '@inertiajs/react';
 
 interface Agent {
     id: number;
@@ -25,16 +26,17 @@ interface User {
     theme?: 'light' | 'dark' | 'system';
 }
 
+interface AdminDefaultProvider {
+    provider: string;
+    name: string;
+    has_api_key: boolean;
+}
+
 interface ProfilePageProps {
     agents: Agent[];
     chats: Chat[];
     user: User;
-}
-
-interface Toast {
-    id: number;
-    type: 'success' | 'error';
-    message: string;
+    adminDefaultProvider?: AdminDefaultProvider | null;
 }
 
 const inputCls = 'w-full px-3 py-2 rounded-lg border-2 text-sm outline-none transition-colors theme-bg-input theme-border theme-text-primary focus:border-[#667eea]';
@@ -42,7 +44,7 @@ const labelCls = 'block text-xs mb-1 theme-text-secondary';
 const btnCls = 'px-4 py-1.5 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-xs font-medium hover:shadow-md hover:shadow-[rgba(102,126,234,0.3)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 const sectionCls = 'rounded-xl p-4 theme-bg-card border-0';
 
-export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
+export default function ProfilePage({ agents, chats, user, adminDefaultProvider }: ProfilePageProps) {
     // Source of truth for the initial selection: localStorage (user's last active choice)
     // or the DB value. data-theme on <html> is always the RESOLVED 'light'/'dark'
     // (set by the inline blade script), so reading it would lose 'system'.
@@ -60,9 +62,12 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [toasts, setToasts] = useState<Toast[]>([]);
     // Laravel returns validation errors as { field: [msg, msg, ...] } — store the full arrays
     const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+    // Manual toast override for non-validation errors (e.g. network failures,
+    // 500 responses). Pass to <FlashBanner variant="toast" override={...} />.
+    // Validation errors flow through `$page.props.errors` → field errors only.
+    const [overrideFlash, setOverrideFlash] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; message: string } | null>(null);
     const [saving, setSaving] = useState(false);
     const [changingPassword, setChangingPassword] = useState(false);
     const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -71,15 +76,25 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-    // Toast helper — pushes a toast and auto-dismisses after the duration
-    const showToast = (type: 'success' | 'error', message: string) => {
-        const id = Date.now() + Math.random();
-        setToasts(prev => [...prev, { id, type, message }]);
-        const duration = type === 'error' ? 6000 : 4000;
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
-        }, duration);
-    };
+    // Sync field errors from Inertia's `$page.props.errors` (auto-populated
+    // by the `errors` shared prop). This covers BOTH the 422 validation
+    // case (Laravel's validate() failure) AND any controller path that
+    // returns back()->withErrors(...). Either way, errors display as
+    // field-level only — never as a top-level toast.
+    const { errors: pageErrors } = usePage<{ errors?: Record<string, string> }>().props;
+    useEffect(() => {
+        if (pageErrors && Object.keys(pageErrors).length > 0) {
+            const arr: Record<string, string[]> = {};
+            for (const [k, v] of Object.entries(pageErrors)) {
+                arr[k] = [v];
+            }
+            setFieldErrors(arr);
+        }
+        // Intentionally do NOT clear fieldErrors when pageErrors is empty —
+        // the form's submit handlers clear local state at the start of each
+        // submission, and we don't want this effect to race with that.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pageErrors]);
 
     const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
         // Immediately apply theme to DOM so user sees the change right away
@@ -128,30 +143,32 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
         e.preventDefault();
         setSaving(true);
         setFieldErrors({});
+        setOverrideFlash(null);
 
-        try {
-            const response = await fetch('/profile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf() },
-                body: JSON.stringify({ name, email }),
-            });
-            const data = await response.json().catch(() => ({}));
-            if (response.ok) {
-                showToast('success', data.message || 'Profile updated successfully!');
+        // Use Inertia router.post so the backend's back()->with('flash', ...)
+        // flows into $page.props.flash and is rendered by <FlashBanner />.
+        // Validation errors land on `errors` from Inertia's default share();
+        // we still extract them into fieldErrors for per-field display.
+        router.post('/profile', { name, email }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                // Success toast is rendered by FlashBanner via $page.props.flash.
                 setFieldErrors({});
-            } else if (response.status === 422 && data.errors) {
-                // Validation error → show ONLY under each specific field
-                // (top-level `data.message` is redundant with `data.errors` field entries,
-                //  so we deliberately skip the toast here — toast is for non-validation errors only)
-                setFieldErrors(data.errors);
-            } else {
-                showToast('error', data.error || 'Failed to update profile.');
-            }
-        } catch (error) {
-            showToast('error', 'An error occurred. Please try again.');
-        } finally {
-            setSaving(false);
-        }
+            },
+            onError: (errors) => {
+                if (Object.keys(errors).length === 0) {
+                    // Non-validation error (e.g. 500, network) — show a toast.
+                    setOverrideFlash({ type: 'error', message: 'Failed to update profile. Please try again.' });
+                } else {
+                    const arr: Record<string, string[]> = {};
+                    for (const [k, v] of Object.entries(errors)) {
+                        arr[k] = Array.isArray(v) ? v : [String(v)];
+                    }
+                    setFieldErrors(arr);
+                }
+            },
+            onFinish: () => setSaving(false),
+        });
     };
 
     // handleLogout removed — logout button moved to sidebar (ChatLayout)
@@ -171,36 +188,14 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
     return (
         <>
             <Head title="Profile - ThinkChat" />
-            <ChatLayout agents={agents} chats={chats} user={user} theme={theme}>
-                {/* Toast Notifications — fixed top-right, z-50 above layout */}
-                <div className="fixed top-4 right-4 z-50 space-y-2 pointer-events-none">
-                    {toasts.map((toast) => (
-                        <div
-                            key={toast.id}
-                            className={`pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm animate-slide-in ${
-                                toast.type === 'success'
-                                    ? 'border-[#5a5ec7] shadow-blue-900/30'
-                                    : 'border-red-700 shadow-red-900/30'
-                            }`}
-                            style={{
-                                // Inline styles to guarantee toast colors render correctly in both themes
-                                // (no chance of CSS specificity or theme overrides interfering)
-                                backgroundImage: toast.type === 'success'
-                                    ? 'linear-gradient(to right, #667eea, #764ba2)'
-                                    : 'none',
-                                backgroundColor: toast.type === 'success' ? 'transparent' : '#dc2626', // red-600
-                                color: '#000000',
-                            }}
-                        >
-                            {toast.type === 'success' ? (
-                                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                            ) : (
-                                <XCircle className="w-4 h-4 flex-shrink-0" />
-                            )}
-                            <span>{toast.message}</span>
-                        </div>
-                    ))}
-                </div>
+            <ChatLayout agents={agents} chats={chats} user={user} theme={theme} adminDefaultProvider={adminDefaultProvider}>
+                {/* Flash banner — reads $page.props.flash (set by the Inertia
+                    middleware on every back()->with('flash', ...) response) and
+                    renders a top-right toast. The `override` prop is used for
+                    non-validation errors (network failures, 500s) that don't
+                    flow through the flash channel. Validation errors display
+                    per-field only, never as a toast. */}
+                <FlashBanner variant="toast" override={overrideFlash} />
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-5 theme-bg-app">
                     <div className="max-w-[900px] mx-auto space-y-3">
@@ -324,32 +319,46 @@ export default function ProfilePage({ agents, chats, user }: ProfilePageProps) {
                                 <button
                                     type="button"
                                     disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
-                                    onClick={async () => {
-                                        if (newPassword !== confirmPassword) { showToast('error', 'Passwords do not match.'); return; }
+                                    onClick={() => {
+                                        // Password mismatch is handled by Laravel's `confirmed`
+                                        // rule on the backend (see ProfileController::changePassword).
+                                        // On mismatch the response is 422 with
+                                        //   errors: { password: ['The password field confirmation does not match.'] }
+                                        // and the useEffect on `$page.props.errors` populates
+                                        // fieldErrors — the error renders under the new-password
+                                        // input. No client-side check needed.
                                         setChangingPassword(true);
                                         setFieldErrors({});
-                                        try {
-                                            const res = await fetch('/profile/password', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf() },
-                                                body: JSON.stringify({ current_password: currentPassword, password: newPassword, password_confirmation: confirmPassword }),
-                                            });
-                                            const d = await res.json().catch(() => ({}));
-                                            if (res.ok) {
-                                                showToast('success', 'Password changed successfully!');
-                                                setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+                                        setOverrideFlash(null);
+                                        // Use Inertia router so back()->with('flash', ...) flows
+                                        // into $page.props.flash; success toast is rendered by
+                                        // FlashBanner. Validation errors populate field-level
+                                        // errors; non-validation errors show as a toast.
+                                        router.post('/profile/password', {
+                                            current_password: currentPassword,
+                                            password: newPassword,
+                                            password_confirmation: confirmPassword,
+                                        }, {
+                                            preserveScroll: true,
+                                            onSuccess: () => {
+                                                setCurrentPassword('');
+                                                setNewPassword('');
+                                                setConfirmPassword('');
                                                 setFieldErrors({});
-                                            } else if (res.status === 422 && d.errors) {
-                                                // Validation error → field-only, no toast (avoid redundancy)
-                                                setFieldErrors(d.errors);
-                                            } else {
-                                                showToast('error', d.error || 'Failed to change password.');
-                                            }
-                                        } catch {
-                                            showToast('error', 'An error occurred.');
-                                        } finally {
-                                            setChangingPassword(false);
-                                        }
+                                            },
+                                            onError: (errors) => {
+                                                if (Object.keys(errors).length === 0) {
+                                                    setOverrideFlash({ type: 'error', message: 'Failed to change password. Please try again.' });
+                                                } else {
+                                                    const arr: Record<string, string[]> = {};
+                                                    for (const [k, v] of Object.entries(errors)) {
+                                                        arr[k] = Array.isArray(v) ? v : [String(v)];
+                                                    }
+                                                    setFieldErrors(arr);
+                                                }
+                                            },
+                                            onFinish: () => setChangingPassword(false),
+                                        });
                                     }}
                                     className={btnCls}
                                 >

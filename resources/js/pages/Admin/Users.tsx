@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Users, Trash2, Edit, ChevronRight, Shield, User, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Trash2, Edit, ChevronRight, Shield, User, ArrowLeft } from 'lucide-react';
 import UserEditForm from './UserEdit';
+import FlashBanner from '@/components/FlashBanner';
 
 interface UserData {
     id: number;
@@ -14,35 +15,15 @@ interface UserData {
 
 interface AdminUsersProps {
     users: UserData[];
-    flash?: { success?: string; error?: string };
 }
 
-interface Toast {
-    id: number;
-    type: 'success' | 'error';
-    message: string;
-}
-
-export default function AdminUsers({ users, flash }: AdminUsersProps) {
+export default function AdminUsers({ users }: AdminUsersProps) {
     const [userList, setUserList] = useState(users);
-    const [toasts, setToasts] = useState<Toast[]>([]);
+    // Manual toast override for non-validation messages from fetch() responses.
+    // Inertia flash messages (from back()->with('flash', ...)) flow through
+    // <FlashBanner /> automatically via the Inertia middleware.
+    const [overrideFlash, setOverrideFlash] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; message: string } | null>(null);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
-    const [editToast, setEditToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-    // Show flash toast from server-side session flash (survives one page load, gone on refresh)
-    useEffect(() => {
-        if (flash?.success) addToast('success', flash.success);
-        if (flash?.error) addToast('error', flash.error);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const addToast = (type: 'success' | 'error', message: string) => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, type, message }]);
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
-        }, 4000);
-    };
 
     const handleDelete = async (userId: number, userName: string) => {
         if (!confirm(`Are you sure you want to delete "${userName}"? This will delete all their chats and agents.`)) {
@@ -64,13 +45,13 @@ export default function AdminUsers({ users, flash }: AdminUsersProps) {
 
             if (response.ok || response.redirected) {
                 setUserList(prev => prev.filter(u => u.id !== userId));
-                addToast('success', `"${userName}" has been deleted.`);
+                setOverrideFlash({ type: 'success', message: `"${userName}" has been deleted.` });
             } else {
                 const data = await response.json().catch(() => ({}));
-                addToast('error', data.error || 'Failed to delete user.');
+                setOverrideFlash({ type: 'error', message: data.error || 'Failed to delete user.' });
             }
         } catch {
-            addToast('error', 'Network error. Please try again.');
+            setOverrideFlash({ type: 'error', message: 'Network error. Please try again.' });
         }
     };
 
@@ -84,24 +65,7 @@ export default function AdminUsers({ users, flash }: AdminUsersProps) {
 
     return (
         <div className="p-6 space-y-6">
-            {/* Toast Notifications */}
-            {toasts.map((toast) => (
-                <div
-                    key={toast.id}
-                    className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm animate-slide-in ${
-                        toast.type === 'success'
-                            ? 'bg-green-500/15 border-green-500/30 text-green-400'
-                            : 'bg-red-500/15 border-red-500/30 text-red-400'
-                    }`}
-                >
-                    {toast.type === 'success' ? (
-                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                    ) : (
-                        <XCircle className="w-4 h-4 flex-shrink-0" />
-                    )}
-                    <span>{toast.message}</span>
-                </div>
-            ))}
+            <FlashBanner variant="toast" override={overrideFlash} />
 
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -203,25 +167,10 @@ export default function AdminUsers({ users, flash }: AdminUsersProps) {
                         onSave={(updated) => {
                             setUserList(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u));
                             setEditingUser(null);
-                            setEditToast({ type: 'success', message: `"${updated.name}" updated successfully.` });
-                            setTimeout(() => setEditToast(null), 4000);
+                            setOverrideFlash({ type: 'success', message: `"${updated.name}" updated successfully.` });
                         }}
                         onCancel={() => setEditingUser(null)}
                     />
-                </div>
-            )}
-
-            {/* Toast — rendered outside the modal so it survives after modal closes */}
-            {editToast && (
-                <div
-                    className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm ${
-                        editToast.type === 'success'
-                            ? 'bg-green-500/15 border-green-500/30 text-green-400'
-                            : 'bg-red-500/15 border-red-500/30 text-red-400'
-                    }`}
-                >
-                    {editToast.type === 'success' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
-                    <span>{editToast.message}</span>
                 </div>
             )}
         </div>

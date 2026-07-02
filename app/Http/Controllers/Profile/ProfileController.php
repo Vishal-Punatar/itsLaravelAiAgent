@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Profile;
 
 use App\Http\Controllers\Controller;
 use App\Models\Chat;
+use App\Support\AdminDefaultProvider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProfileController extends Controller
@@ -50,9 +52,19 @@ class ProfileController extends Controller
                 'theme' => $user->theme ?? 'system',
             ],
             'stats' => $stats,
+            // Drives the "New Chat" button in the ChatLayout sidebar. Button
+            // is enabled when the user has agents OR the admin default has
+            // an API key configured (so brand-new users can chat immediately).
+            'adminDefaultProvider' => AdminDefaultProvider::payload(),
         ]);
     }
 
+    /**
+     * Profile update — returns Inertia redirect with typed flash on success.
+     * Validation failures (Laravel's validate() throws) are auto-converted
+     * to a 422 response by Laravel's exception handler; no flash is set
+     * so the frontend shows ONLY field-level errors (never a toast).
+     */
     public function update(Request $request)
     {
         $user = Auth::user();
@@ -64,9 +76,21 @@ class ProfileController extends Controller
 
         $user->update($validated);
 
-        return response()->json(['success' => true, 'message' => 'Profile updated successfully!']);
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Profile updated successfully!',
+        ]);
     }
 
+    /**
+     * Password change — only sets a flash on success. ALL failure paths
+     * throw ValidationException so the response is a 422 (not 302):
+     *   - Field validation: $request->validate() throws → 422
+     *   - Wrong current password: ValidationException::withMessages(...) → 422
+     * Inertia surfaces the 422 errors as `$page.props.errors` and the
+     * frontend's useEffect on pageErrors renders them as field-level only
+     * (never a toast).
+     */
     public function changePassword(Request $request)
     {
         $user = Auth::user();
@@ -77,16 +101,25 @@ class ProfileController extends Controller
         ]);
 
         if (!Hash::check($validated['current_password'], $user->password)) {
-            return response()->json(['success' => false, 'error' => 'Current password is incorrect.'], 422);
+            throw ValidationException::withMessages([
+                'current_password' => 'Current password is incorrect.',
+            ]);
         }
 
         $user->update([
             'password' => Hash::make($validated['password']),
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Password changed successfully!']);
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Password changed successfully!',
+        ]);
     }
 
+    /**
+     * Theme updates are silent (UI flips instantly from local state) so we
+     * don't flash a toast. We still redirect back so the page props refresh.
+     */
     public function updateTheme(Request $request)
     {
         $validated = $request->validate([
@@ -95,6 +128,6 @@ class ProfileController extends Controller
 
         Auth::user()->update(['theme' => $validated['theme']]);
 
-        return response()->json(['success' => true, 'theme' => $validated['theme']]);
+        return back();
     }
 }

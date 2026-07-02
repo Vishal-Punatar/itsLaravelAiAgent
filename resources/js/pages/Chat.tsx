@@ -385,6 +385,7 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
                         <ChatInput
                             value={message}
                             onChange={setMessage}
+                            onSubmit={handleSubmit}
                             disabled={isSubmitting || !selectedAgent || !selectedModel}
                             theme={theme}
                             attachments={attachments}
