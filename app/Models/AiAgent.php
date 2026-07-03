@@ -33,6 +33,11 @@ class AiAgent extends Model
 
     /**
      * Get the decrypted API key.
+     *
+     * Returns an empty string on decrypt failure (with a logged error) so that
+     * upstream services like ProviderModelsService surface a clear "no_api_key"
+     * message instead of silently passing an encrypted blob to providers, who
+     * then reject it as malformed → users see a misleading empty Models list.
      */
     public function getDecryptedApiKeyAttribute(): string
     {
@@ -42,7 +47,12 @@ class AiAgent extends Model
         try {
             return decrypt($this->api_key);
         } catch (\Exception $e) {
-            return $this->api_key;
+            \Log::error('AiAgent API key decryption failed', [
+                'agent_id' => $this->id,
+                'provider' => $this->provider,
+                'error'    => $e->getMessage(),
+            ]);
+            return '';
         }
     }
 

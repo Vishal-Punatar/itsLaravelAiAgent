@@ -167,6 +167,7 @@ class ProviderModelsService
             'gemini' => $this->fetchGemini($apiKey),
             'mistral' => $this->fetchMistral($apiKey),
             'xai' => $this->fetchXai($apiKey),
+            'openrouter' => $this->fetchOpenRouter($apiKey),
             default => null,
         };
     }
@@ -324,6 +325,34 @@ class ProviderModelsService
                 ->values()->toArray();
         } catch (\Exception $e) {
             Log::error('xAI models fetch error', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    private function fetchOpenRouter(string $apiKey): ?array
+    {
+        try {
+            $r = Http::withToken($apiKey)->get('https://openrouter.ai/api/v1/models');
+            if (!$r->successful()) {
+                Log::warning('OpenRouter models fetch failed', ['status' => $r->status()]);
+                return null;
+            }
+            // OpenRouter returns a flat "data" array; each entry's `id` already
+            // includes the org prefix (e.g. "openai/gpt-4o-mini"), so we just
+            // pluck + filter out any non-text modalities.
+            $blocked = ['image', 'audio', 'video', 'embed', 'moderation'];
+            return collect($r->json('data', []))
+                ->pluck('id')
+                ->filter(function ($id) use ($blocked) {
+                    foreach ($blocked as $b) {
+                        if (str_contains((string) $id, $b)) return false;
+                    }
+                    return true;
+                })
+                ->values()
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('OpenRouter models fetch error', ['error' => $e->getMessage()]);
             return null;
         }
     }

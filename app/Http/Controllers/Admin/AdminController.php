@@ -133,6 +133,10 @@ class AdminController extends Controller
         // Build final list - merge available providers with database config
         $providers = collect($availableProviders)->map(function ($info, $key) use ($dbProviders) {
             $dbProvider = $dbProviders->get($key);
+            // is_configured reflects the actual stored key, not mere row existence
+            // (a row can exist with api_key=NULL or with a key whose APP_KEY has since
+            // been rotated — neither should show "API key configured" on the card).
+            $hasStoredKey = !empty(trim((string) ($dbProvider?->api_key ?? '')));
             return [
                 'id' => $dbProvider?->id,
                 'provider' => $key,
@@ -140,7 +144,7 @@ class AdminController extends Controller
                 'api_key' => $dbProvider?->decrypted_api_key ?? null,
                 'is_default' => $dbProvider?->is_default ?? false,
                 'is_active' => $dbProvider?->is_active ?? true,
-                'is_configured' => $dbProvider !== null,
+                'is_configured' => $hasStoredKey,
             ];
         })->values();
 
@@ -154,7 +158,8 @@ class AdminController extends Controller
                 'api_key' => $p->decrypted_api_key,
                 'is_default' => $p->is_default,
                 'is_active' => $p->is_active,
-                'is_configured' => true,
+                // Same rule as the main mapping: only true if a stored key exists.
+                'is_configured' => !empty(trim((string) ($p->api_key ?? ''))),
             ])->values()->toArray();
             $providers = $providers->merge($custom);
         }
@@ -182,20 +187,60 @@ class AdminController extends Controller
         $provider->is_active = $validated['is_active'] ?? $provider->is_active;
         $provider->save();
 
-        return response()->json(['success' => true, 'message' => $provider->name . ' updated successfully.']);
+        // Return the refreshed provider so the client can sync state (e.g. is_configured
+        // when the user cleared the api_key via the trash icon). Otherwise the client
+        // would keep showing stale `is_configured=true` from when the modal opened.
+        return response()->json([
+            'success' => true,
+            'message' => $provider->name . ' updated successfully.',
+            'provider' => [
+                'id' => $provider->id,
+                'provider' => $provider->provider,
+                'name' => $provider->name,
+                'api_key' => $provider->decrypted_api_key,
+                'is_default' => $provider->is_default,
+                'is_active' => $provider->is_active,
+                'is_configured' => !empty(trim((string) ($provider->api_key ?? ''))),
+            ],
+        ]);
     }
 
     /**
      * Test a provider's API key by hitting its live /models endpoint.
-     * Accepts an unsaved candidate key from the form (so user can verify
-     * BEFORE saving to DB). If no candidate is provided, uses the saved key.
+     *
+     * Works for both unsaved providers (testing BEFORE save) and existing rows:
+     *   - If `api_key` is in the request body, use it (user is testing a candidate).
+     *     Provider slug comes from the body's `provider` field — the DB row is not
+     *     required, so a `null` URL id (e.g. `/admin/providers/null/test-connection`
+     *     for an unconfigured tile) is fine.
+     *   - If no candidate key is supplied, look up the provider by URL id and use
+     *     its decrypted saved key (testing an existing entry without re-entering).
      */
-    public function testProviderConnection(Request $request, $id)
+    public function testProviderConnection(Request $request, $id = null)
     {
-        $provider = AdminAiAgent::findOrFail($id);
-
         $candidate = trim((string) $request->input('api_key', ''));
-        $apiKey = $candidate !== '' ? $candidate : ($provider->decrypted_api_key ?? null);
+        $id = $request->input('id') ?? $id;
+
+        $apiKey = null;
+        $providerSlug = null;
+
+        if ($candidate !== '') {
+            // Candidate key given — only need the slug, no DB lookup required.
+            $apiKey = $candidate;
+            $providerSlug = (string) $request->input('provider', '');
+        } elseif ($id !== null && $id !== 'null' && $id !== '') {
+            // Existing provider — look up by id and decrypt the saved key.
+            $provider = AdminAiAgent::find($id);
+            if (!$provider) {
+                return response()->json([
+                    'success' => false,
+                    'ok' => false,
+                    'message' => "Provider #{$id} not found.",
+                ], 404);
+            }
+            $providerSlug = $provider->provider;
+            $apiKey = $provider->decrypted_api_key;
+        }
 
         if (empty($apiKey)) {
             return response()->json([
@@ -205,36 +250,45 @@ class AdminController extends Controller
             ], 422);
         }
 
+        if (empty($providerSlug)) {
+            return response()->json([
+                'success' => false,
+                'ok' => false,
+                'message' => 'Missing provider slug in request.',
+            ], 422);
+        }
+
         try {
-            $models = match ($provider->provider) {
-                'openai'    => $this->testOpenAi($apiKey),
-                'anthropic' => $this->testAnthropic($apiKey),
-                'gemini'    => $this->testGemini($apiKey),
-                'groq'      => $this->testGroq($apiKey),
-                'xai'       => $this->testXai($apiKey),
-                'deepseek'  => $this->testDeepSeek($apiKey),
-                'mistral'   => $this->testMistral($apiKey),
-                default     => null,
+            $models = match ($providerSlug) {
+                'openai'     => $this->testOpenAi($apiKey),
+                'anthropic'  => $this->testAnthropic($apiKey),
+                'gemini'     => $this->testGemini($apiKey),
+                'groq'       => $this->testGroq($apiKey),
+                'xai'        => $this->testXai($apiKey),
+                'deepseek'   => $this->testDeepSeek($apiKey),
+                'mistral'    => $this->testMistral($apiKey),
+                'openrouter' => $this->testOpenRouter($apiKey),
+                default      => null,
             };
 
             if ($models === null) {
                 return response()->json([
                     'success' => false,
                     'ok' => false,
-                    'message' => "No live test endpoint for provider '{$provider->provider}'. Check the key manually.",
+                    'message' => "No live test endpoint for provider '{$providerSlug}'. Check the key manually.",
                 ], 422);
             }
 
             return response()->json([
                 'success' => true,
                 'ok' => true,
-                'provider' => $provider->provider,
+                'provider' => $providerSlug,
                 'count' => count($models),
                 'models' => $models,
             ]);
         } catch (\Exception $e) {
             Log::error('Provider test connection error', [
-                'provider' => $provider->provider,
+                'provider' => $providerSlug,
                 'error' => $e->getMessage(),
             ]);
             return response()->json([
@@ -305,6 +359,17 @@ class AdminController extends Controller
         return collect($r->json('data', []))->pluck('id')->sort()->values()->toArray();
     }
 
+    private function testOpenRouter(string $key): ?array
+    {
+        $r = Http::withToken($key)->get('https://openrouter.ai/api/v1/models');
+        if (!$r->successful()) return $this->failFromResponse('OpenRouter', $r);
+        return collect($r->json('data', []))
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->toArray();
+    }
+
     /**
      * Used inside fetchers above: returns null and lets the controller catch the
      * response body so the user sees the actual API error message.
@@ -348,7 +413,8 @@ class AdminController extends Controller
                 'api_key' => $provider->decrypted_api_key,
                 'is_default' => $provider->is_default,
                 'is_active' => $provider->is_active,
-                'is_configured' => true,
+                // Reflects reality, not just row creation — user can save without a key.
+                'is_configured' => !empty(trim((string) ($provider->api_key ?? ''))),
             ],
         ]);
     }

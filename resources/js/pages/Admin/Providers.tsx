@@ -59,10 +59,12 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
             .then(data => {
                 if (data.success) {
                     showToast('success', `${editProvider.name} saved successfully.`);
-                    if (isNew && data.provider) {
-                        setProviders(prev => prev.map(p => p.provider === editProvider.provider ? { ...editProvider, ...data.provider, is_configured: true } : p));
+                    if (data.provider) {
+                        // Use server-reported state so is_configured reflects the
+                        // *actual* stored key (e.g. false when saved without one).
+                        setProviders(prev => prev.map(p => p.provider === editProvider.provider ? { ...p, ...editProvider, ...data.provider } : p));
                     } else {
-                        setProviders(prev => prev.map(p => p.id === editProvider.id ? { ...editProvider } : p));
+                        setProviders(prev => prev.map(p => p.id === editProvider.id ? { ...p, ...editProvider } : p));
                     }
                     setEditProvider(null);
                 } else {
@@ -89,7 +91,11 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                     'X-CSRF-TOKEN': csrf,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ api_key: editProvider.api_key ?? '' }),
+                body: JSON.stringify({
+                    id: editProvider.id ?? undefined,
+                    provider: editProvider.provider,
+                    api_key: editProvider.api_key ?? '',
+                }),
             });
             const data = await res.json();
             if (data.ok) {
@@ -336,9 +342,9 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                     />
 
                     {/* Modal */}
-                    <div className="relative w-full max-w-lg rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl overflow-hidden">
+                    <div className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl overflow-hidden">
                             {/* Modal Header */}
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
+                            <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
                                 <div className="flex items-center gap-3">
                                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-r ${getProviderGradient(editProvider.provider)} flex items-center justify-center`}>
                                         <ProviderIcon provider={editProvider.provider} size={20} color="#ffffff" />
@@ -357,7 +363,7 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                             </div>
 
                             {/* Modal Body */}
-                            <div className="px-6 py-5 space-y-5">
+                            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                                 {/* API Key */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-[var(--text-secondary)]">API Key</label>
@@ -430,7 +436,7 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                             </div>
 
                             {/* Modal Footer */}
-                            <div className="flex items-center gap-3 px-6 py-4 border-t border-[var(--border-color)] bg-[var(--bg-tertiary)]">
+                            <div className="flex-shrink-0 flex items-center gap-3 px-6 py-4 border-t border-[var(--border-color)] bg-[var(--bg-tertiary)]">
                                 <button
                                     onClick={saveProvider}
                                     disabled={saving}

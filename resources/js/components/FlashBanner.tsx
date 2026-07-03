@@ -160,7 +160,7 @@ export default function FlashBanner({ override, variant = 'inline', autoDismissM
             <div
                 role="alert"
                 aria-live="polite"
-                className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm pointer-events-auto animate-slide-in ${
+                className={`fixed top-4 right-4 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm pointer-events-auto animate-slide-in ${
                     closing ? 'opacity-0 -translate-y-1' : 'opacity-100 translate-y-0'
                 } transition-all duration-200 ${className}`}
                 style={{

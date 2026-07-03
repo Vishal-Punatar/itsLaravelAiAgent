@@ -25,6 +25,11 @@ class AdminAiAgent extends Model
 
     /**
      * Get the decrypted API key.
+     *
+     * Returns null on decrypt failure (with a logged error) so that upstream
+     * services like ProviderModelsService treat it as missing → user sees a
+     * clear "no_api_key" message instead of providers rejecting an encrypted
+     * blob as malformed.
      */
     public function getDecryptedApiKeyAttribute(): ?string
     {
@@ -34,7 +39,12 @@ class AdminAiAgent extends Model
         try {
             return decrypt($this->api_key);
         } catch (\Exception $e) {
-            return $this->api_key;
+            \Log::error('AdminAiAgent API key decryption failed', [
+                'provider_id' => $this->id,
+                'provider'    => $this->provider,
+                'error'       => $e->getMessage(),
+            ]);
+            return null;
         }
     }
 
