@@ -3,29 +3,17 @@ import { Bot, Sparkles, Zap, MessageSquare, Star } from 'lucide-react';
 import ChatLayout, { AgentSelector, ModelSelector, ChatInput, MessageBubble, TypingIndicator, Lightbox } from '@/components/ChatLayout';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
 
-// Hook to get current theme-aware logo
+// Returns BOTH logo variants. The visible one is chosen by CSS via the
+// [data-theme] attribute on <html> — see .theme-logo-stack in app.css. This
+// avoids a JS-driven <img src=...> swap (which pops instantly, no transition)
+// and avoids a MutationObserver cycle on data-theme (which scheduled an extra
+// React render and made the logo flip before the rest of the UI). Result:
+// the logo crossfades in the SAME paint as every other theme-driven element.
 function useThemeLogo() {
-    const [themeLogo, setThemeLogo] = useState('/img/logo-brand.png');
-    useEffect(() => {
-        const updateLogo = () => {
-            const theme = document.documentElement.getAttribute('data-theme');
-            if (theme === 'light') {
-                setThemeLogo('/img/logo-brand-light.png');
-            } else {
-                setThemeLogo('/img/logo-brand.png');
-            }
-        };
-        updateLogo();
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        mediaQuery.addEventListener('change', updateLogo);
-        const observer = new MutationObserver(updateLogo);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-        return () => {
-            mediaQuery.removeEventListener('change', updateLogo);
-            observer.disconnect();
-        };
-    }, []);
-    return themeLogo;
+    return {
+        logoDark: '/img/logo-brand.png',
+        logoLight: '/img/logo-brand-light.png',
+    };
 }
 
 interface Agent {
@@ -83,7 +71,7 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ agents, chats, chat, user, userHasAgents, adminDefaultProvider }: ChatPageProps) {
-    const themeLogo = useThemeLogo();
+    const { logoDark, logoLight } = useThemeLogo();
     const [message, setMessage] = useState('');
     const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
     // Initialize selected agent - prefer user's default agent, then admin default, else null
@@ -115,14 +103,23 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     const [attachments, setAttachments] = useState<File[]>([]);
     const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
-    // Sync theme state when body's class changes (blade template toggles .light/.dark on body)
+    // Sync theme state with other components via the `app:theme-changed` event.
+    // We intentionally do NOT observe <body class> here: ChatLayout's
+    // applyTheme() adds .light/.dark to <body> synchronously inside
+    // handleThemeChange — a MutationObserver on body would fire from that
+    // microtask and schedule an extra setTheme commit, breaking the atomic
+    // single-paint transition. The window event below is fired after React's
+    // flushSync commit, so we update in lock-step with the visual change.
     useEffect(() => {
-        const observer = new MutationObserver(() => {
-            if (document.body.classList.contains('light')) { setTheme('light'); return; }
-            if (document.body.classList.contains('dark')) { setTheme('dark'); return; }
-        });
-        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
+        function onThemeChanged(e: Event) {
+            const ce = e as CustomEvent<'light' | 'dark' | 'system'>;
+            const next = ce.detail;
+            if (next === 'light' || next === 'dark' || next === 'system') {
+                setTheme(next);
+            }
+        }
+        window.addEventListener('app:theme-changed', onThemeChanged);
+        return () => window.removeEventListener('app:theme-changed', onThemeChanged);
     }, []);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -282,7 +279,8 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
             {localMessages.length === 0 ? (
                 <ChatWelcome
                     theme={theme}
-                    themeLogo={themeLogo}
+                    logoDark={logoDark}
+                    logoLight={logoLight}
                     chats={chats}
                     agents={agents}
                     adminDefaultProvider={adminDefaultProvider}
@@ -418,7 +416,8 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
 // Layout: search bar → recent chats grid (4) → agents row.
 function ChatWelcome({
     theme,
-    themeLogo,
+    logoDark,
+    logoLight,
     chats,
     agents,
     adminDefaultProvider,
@@ -428,7 +427,8 @@ function ChatWelcome({
     user,
 }: {
     theme: 'light' | 'dark' | 'system';
-    themeLogo: string;
+    logoDark: string;
+    logoLight: string;
     chats: Chat[];
     agents: Agent[];
     adminDefaultProvider?: AdminDefaultProvider | null;
@@ -499,7 +499,10 @@ function ChatWelcome({
             <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
                 {/* Header */}
                 <div className="flex flex-col items-center text-center mb-6">
-                    <img src={themeLogo} alt="ThinkChat" className="w-14 h-14 rounded-2xl object-cover mb-3 shadow-lg shadow-[rgba(102,126,234,0.35)]" />
+                    <span className="theme-logo-stack mb-3">
+                        <img src={logoDark} alt="ThinkChat" className="logo-img logo-dark w-14 h-14 rounded-2xl object-cover shadow-lg shadow-[rgba(102,126,234,0.35)]" />
+                        <img src={logoLight} alt="" aria-hidden="true" className="logo-img logo-light w-14 h-14 rounded-2xl object-cover shadow-lg shadow-[rgba(102,126,234,0.35)]" />
+                    </span>
                     <h2 className={`text-xl font-bold mb-1 ${theme === 'light' ? 'text-gray-800' : 'text-white'}`}>
                         Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
                     </h2>

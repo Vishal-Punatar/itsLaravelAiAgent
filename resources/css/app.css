@@ -1173,31 +1173,32 @@ body, html {
    atomically when the theme changes
    ============================================= */
 
+/* The default ::view-transition-group(root) animation runs at 250ms.
+   We keep it at the default — no custom @keyframes — so the browser
+   uses its native crossfade (smooth, hardware-accelerated, atomic). */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-    animation-duration: 0.3s;
+    animation-duration: 250ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    mix-blend-mode: normal;
 }
 
-::view-transition-old(root) {
-    animation-name: theme-fade-out;
+/* During a theme switch we DON'T want Tailwind utilities or
+   .theme-logo-stack to also run their own CSS transitions on top of
+   the View Transition crossfade — that creates a "double animation"
+   where some elements appear to lag behind the crossfade. Suppress
+   all transitions globally while a view-transition is active. */
+::view-transition-group(root) {
+    animation-duration: 250ms;
 }
 
-::view-transition-new(root) {
-    animation-name: theme-fade-in;
-}
-
-@keyframes theme-fade-out {
-    to {
-        opacity: 0;
-    }
-}
-
-@keyframes theme-fade-in {
-    from {
-        opacity: 0;
-    }
+/* Belt-and-suspenders: while the new layer is being painted, briefly
+   disable transitions on the live DOM so nothing chases the crossfade.
+   VTs handle the visual transition; the live DOM settles instantly. */
+html.theme-vt,
+html.theme-vt *,
+html.theme-vt *::before,
+html.theme-vt *::after {
+    transition: none !important;
 }
 
 /* Disable View Transitions for users who prefer reduced motion */
@@ -1206,11 +1207,6 @@ body, html {
     ::view-transition-new(root) {
         animation: none !important;
     }
-}
-
-/* Fallback body fade transition */
-body {
-    transition: opacity 0.15s ease;
 }
 
 /* Force body/html to use theme variables with high priority */
@@ -1244,4 +1240,44 @@ textarea::-webkit-scrollbar-thumb:hover {
 
 .light textarea::-webkit-scrollbar-thumb:hover {
     background: #a0a0a0;
+}
+
+/* =============================================
+   THEME-AWARE LOGO STACK
+   Both logo variants are in the DOM; CSS picks the visible one based on the
+   [data-theme] attribute on <html>. No JS state or MutationObserver needed —
+   so the logo swaps in the SAME paint as every other theme-driven element,
+   avoiding the cascading repaint (logos → sidebar → dropdown → main body)
+   that the old JS-driven <img src=...> swap used to cause.
+
+   The logo crossfades via opacity (smooth 0.3s transition). The first <img>
+   is in normal flow (sets the layout box size); the second <img> is
+   absolutely positioned over it. Whichever has opacity:1 wins visually.
+   ============================================= */
+.theme-logo-stack {
+    position: relative;
+    display: inline-block;
+}
+.theme-logo-stack .logo-img {
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity;
+}
+.theme-logo-stack .logo-dark {
+    opacity: 1;
+}
+.theme-logo-stack .logo-light {
+    opacity: 0;
+    position: absolute;
+    inset: 0;
+}
+[data-theme="light"] .theme-logo-stack .logo-dark {
+    opacity: 0;
+}
+[data-theme="light"] .theme-logo-stack .logo-light {
+    opacity: 1;
+}
+/* During a theme switch, both logos are in flight — keep the transition
+   smooth even when .theme-changing is being toggled by applyTheme(). */
+html.theme-changing .theme-logo-stack .logo-img {
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }

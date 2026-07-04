@@ -1,33 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip, Cpu, AlertTriangle, ArrowLeft, Star, StarOff } from 'lucide-react';
 import { useMemo } from 'react';
 import { router } from '@inertiajs/react';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
 
-// Hook to get current theme-aware logo
+// Returns BOTH logo variants. The visible one is chosen by CSS via the
+// [data-theme] attribute on <html> — see .theme-logo-stack in app.css. This
+// avoids a JS-driven <img src=...> swap (which pops instantly, no transition)
+// and avoids a MutationObserver cycle on data-theme (which scheduled an extra
+// React render and made the logo flip before the rest of the UI). Result:
+// the logo crossfades in the SAME paint as every other theme-driven element.
 function useThemeLogo() {
-    const [themeLogo, setThemeLogo] = useState('/img/logo-brand.png');
-    useEffect(() => {
-        const updateLogo = () => {
-            const theme = document.documentElement.getAttribute('data-theme');
-            if (theme === 'light') {
-                setThemeLogo('/img/logo-brand-light.png');
-            } else {
-                setThemeLogo('/img/logo-brand.png');
-            }
-        };
-        updateLogo();
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        mediaQuery.addEventListener('change', updateLogo);
-        const observer = new MutationObserver(updateLogo);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-        return () => {
-            mediaQuery.removeEventListener('change', updateLogo);
-            observer.disconnect();
-        };
-    }, []);
-    return themeLogo;
+    return {
+        logoDark: '/img/logo-brand.png',
+        logoLight: '/img/logo-brand-light.png',
+    };
 }
 
 // Format message content with proper list handling
@@ -214,7 +202,7 @@ export default function ChatLayout({
     adminDefaultProvider,
     userHasAgents,
 }: ChatLayoutProps) {
-    const themeLogo = useThemeLogo();
+    const { logoDark, logoLight } = useThemeLogo();
     // Safety check - ensure user has a default structure
        const safeUser = user ?? { is_admin: false, theme: 'system' };
     // Use passed theme prop, falling back to user's saved theme or system preference
@@ -264,6 +252,7 @@ export default function ChatLayout({
     });
     const dropdownRef = useRef<HTMLDivElement>(null);
     const themeDropdownRef = useRef<HTMLDivElement>(null);
+    const themeChangeTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         // Apply theme on initial mount only
@@ -274,13 +263,18 @@ export default function ChatLayout({
     // Listen for theme changes from other components (e.g. Profile page's
     // Appearance picker) so the header dropdown's icon and selected state
     // stay in sync without a full page refresh.
+    //
+    // NOTE: We intentionally do NOT call applyTheme(next) here. The source
+    // that fired the event already mutated the DOM (set data-theme + .light /
+    // .dark class) and armed the 350ms theme-changing transition. Re-applying
+    // would just reset the timer and queue extra MutationObserver microtasks,
+    // which is what caused the cascading repaint before this fix.
     useEffect(() => {
         function onThemeChanged(e: Event) {
             const ce = e as CustomEvent<'light' | 'dark' | 'system'>;
             const next = ce.detail;
             if (next === 'light' || next === 'dark' || next === 'system') {
                 setTheme(next);
-                applyTheme(next);
             }
         }
         window.addEventListener('app:theme-changed', onThemeChanged);
@@ -476,21 +470,100 @@ export default function ChatLayout({
             localStorage.setItem('app_theme', newTheme);
         } catch (e) {}
 
-        // Apply theme to DOM immediately
-        applyTheme(newTheme);
+        // Atomic theme switch. Two paths:
+        //
+        //   (A) BROWSER SUPPORTS VIEW TRANSITIONS API (Chrome 111+, Edge 111+,
+        //       Safari 18+): wrap the entire DOM mutation + React commit in
+        //       document.startViewTransition(). The browser captures the
+        //       current page as one bitmap layer and crossfades it into the
+        //       new state in a single 250ms animation. This is genuinely
+        //       atomic — no per-element cascade possible because the user is
+        //       looking at two crossfading images, not at individual elements
+        //       repainting.
+        //
+        //   (B) FALLBACK (Firefox, older browsers): fall back to the
+        //       flushSync path. CSS transitions on .theme-changing * handle
+        //       the smoothness, with the caveat that Tailwind utilities
+        //       (0.15s) finish before our CSS rules (0.25s), producing a
+        //       mild visible cascade. Still better than a hard cut.
+        const supportsVT = typeof document.startViewTransition === 'function';
 
-        // Update React state
-        setTheme(newTheme);
+        if (supportsVT) {
+            // Add a marker class that suppresses live-DOM CSS transitions
+            // for the duration of the crossfade, so nothing chases the
+            // View Transition's animation. The class is removed in the
+            // transition's `finished` callback (which always resolves,
+            // even if the animation is skipped).
+            document.documentElement.classList.add('theme-vt');
 
-        // Notify other components (e.g. Profile's Appearance picker) so
-        // their local `theme` state stays in sync without a full page refresh.
-        try { window.dispatchEvent(new CustomEvent('app:theme-changed', { detail: newTheme })); } catch (e) {}
+            const transition = document.startViewTransition(() => {
+                flushSync(() => {
+                    // 1. Mutate DOM: flip data-theme + .light/.dark classes.
+                    //    Skip the theme-changing class so live CSS transitions
+                    //    don't fight the crossfade — the View Transition
+                    //    handles the smoothness for us.
+                    applyTheme(newTheme, { skipTransitionClass: true });
 
-        // Close dropdown
-        setThemeDropdownOpen(false);
-        
-        // Persist to server in background (non-blocking)
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    // 2. Flip local React state. JS-driven classnames
+                    //    (e.g. `${theme === 'light' ? 'bg-white' : ...}`)
+                    //    update NOW. With VT, these are part of the new
+                    //    layer snapshot — they appear atomically with the
+                    //    crossfade.
+                    setTheme(newTheme);
+
+                    // 3. Notify other components (Profile picker, Chat.tsx).
+                    //    Their listeners call setTheme(next) which is batched
+                    //    with step 2 — one commit, one paint, for every
+                    //    component.
+                    try {
+                        window.dispatchEvent(
+                            new CustomEvent('app:theme-changed', { detail: newTheme })
+                        );
+                    } catch (e) {}
+
+                    // 4. Close the dropdown. Because this runs INSIDE the
+                    //    startViewTransition callback, the unmount happens
+                    //    before the new layer is captured — so the dropdown
+                    //    fades out as part of the OLD layer's crossfade-out,
+                    //    atomically with everything else. No "snap out of
+                    //    existence mid-animation".
+                    setThemeDropdownOpen(false);
+                });
+            });
+
+            // Always clean up the marker class + clear pending timers, even
+            // if the animation was interrupted. `finished` resolves whether
+            // the transition completed or was skipped.
+            transition.finished.finally(() => {
+                document.documentElement.classList.remove('theme-vt');
+                if (themeChangeTimerRef.current !== null) {
+                    clearTimeout(themeChangeTimerRef.current);
+                    themeChangeTimerRef.current = null;
+                }
+            });
+        } else {
+            // Fallback path — no View Transitions. Use flushSync to commit
+            // everything atomically + theme-changing CSS class for the
+            // per-element smooth transition.
+            flushSync(() => {
+                applyTheme(newTheme);
+                setTheme(newTheme);
+                try {
+                    window.dispatchEvent(
+                        new CustomEvent('app:theme-changed', { detail: newTheme })
+                    );
+                } catch (e) {}
+                setThemeDropdownOpen(false);
+            });
+        }
+
+        // Persist to server in background (non-blocking). Outside flushSync so
+        // the server response (or any later setStates from it) doesn't gate
+        // the visual paint.
+        const csrfToken =
+            document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content') || '';
         try {
             await fetch('/profile/theme', {
                 method: 'POST',
@@ -505,29 +578,60 @@ export default function ChatLayout({
         }
     };
 
-    const applyTheme = (theme: 'light' | 'dark' | 'system') => {
+    const applyTheme = (
+        theme: 'light' | 'dark' | 'system',
+        options: { skipTransitionClass?: boolean } = {}
+    ) => {
         const root = document.documentElement;
+        const body = document.body;
         const effectiveTheme = theme === 'system'
             ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : theme;
+        const skipTransitionClass = options.skipTransitionClass === true;
 
-        // INSTANT theme switch — disable all transitions first, then snap theme
-        const style = document.createElement('style');
-        style.id = 'theme-transition-lock';
-        style.textContent = '*, *::before, *::after { transition: none !important; }';
-        document.head.appendChild(style);
-        // Force a reflow to ensure the style takes effect
-        void document.body.offsetWidth;
+        // Add the 'theme-changing' class BEFORE flipping data-theme so the
+        // transition rule from app.css (html.theme-changing *  → 0.25s ease
+        // on background-color, color, border-color, etc.) is in effect on the
+        // very next paint. This gives a smooth cross-fade instead of the
+        // hard-cut the old transition-lock hack produced.
+        //
+        // Skip this when wrapping inside document.startViewTransition() —
+        // the View Transition handles the visual smoothness, and we don't
+        // want CSS transitions on the live DOM to compete with the
+        // crossfade (creates a "double animation" where some elements
+        // appear to lag behind the crossfade).
+        if (!skipTransitionClass) {
+            root.classList.add('theme-changing');
+            body.classList.add('theme-changing');
+        }
+
+        // If a previous removal is still pending, cancel it so the new
+        // transition can play uninterrupted (handles rapid theme switching).
+        if (themeChangeTimerRef.current !== null) {
+            clearTimeout(themeChangeTimerRef.current);
+            themeChangeTimerRef.current = null;
+        }
+
+        // Apply the new theme
         root.setAttribute('data-theme', effectiveTheme);
         root.classList.remove('light', 'dark');
         root.classList.add(effectiveTheme);
-        document.body.classList.remove('light', 'dark');
-        document.body.classList.add(effectiveTheme);
-        // Remove transition lock after one paint
-        requestAnimationFrame(() => {
-            const lock = document.getElementById('theme-transition-lock');
-            if (lock) lock.remove();
-        });
+        body.classList.remove('light', 'dark');
+        body.classList.add(effectiveTheme);
+
+        if (skipTransitionClass) {
+            // View Transitions path: no setTimeout cleanup needed; the
+            // caller manages `theme-vt` removal via transition.finished.
+            return;
+        }
+
+        // Remove the transition class after the 0.25s easing completes
+        // (350ms gives a small buffer; matches the 0.25s + a hair).
+        themeChangeTimerRef.current = window.setTimeout(() => {
+            root.classList.remove('theme-changing');
+            body.classList.remove('theme-changing');
+            themeChangeTimerRef.current = null;
+        }, 350);
     };
 
     // Listen for system theme changes when theme is 'system'
@@ -538,6 +642,18 @@ export default function ChatLayout({
         mediaQuery.addEventListener('change', handleSystemThemeChange);
         return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
     }, [theme]);
+
+    // Clear the theme-change timer if the layout unmounts mid-transition
+    // (e.g. user navigates away during the 350ms cross-fade). Prevents a
+    // dangling setTimeout from trying to mutate classes on a detached DOM.
+    useEffect(() => {
+        return () => {
+            if (themeChangeTimerRef.current !== null) {
+                clearTimeout(themeChangeTimerRef.current);
+                themeChangeTimerRef.current = null;
+            }
+        };
+    }, []);
 
     // Use CSS variable-based classes for smooth atomic transitions
     // The .light/.dark class on <html> drives the actual color change
@@ -702,7 +818,10 @@ export default function ChatLayout({
                     {/* Brand */}
                     <div className="flex items-center gap-2 px-3 py-2.5">
                         <a href="/chat" className="flex items-center gap-2 min-w-0 flex-1 rounded-lg hover:opacity-80 transition-opacity" title="Start a new chat">
-                            <img src={themeLogo} alt="ThinkChat" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 shadow-md shadow-[rgba(102,126,234,0.3)]" />
+                            <span className="theme-logo-stack flex-shrink-0">
+                                <img src={logoDark} alt="ThinkChat" className="logo-img logo-dark w-8 h-8 rounded-lg object-cover shadow-md shadow-[rgba(102,126,234,0.3)]" />
+                                <img src={logoLight} alt="" aria-hidden="true" className="logo-img logo-light w-8 h-8 rounded-lg object-cover shadow-md shadow-[rgba(102,126,234,0.3)]" />
+                            </span>
                             <div className="flex flex-col min-w-0 flex-1">
                                 <span className="text-sm font-bold theme-text-primary">ThinkChat</span>
                                 <span className="text-[9px] theme-text-muted truncate">Where ideas meet instant answers</span>

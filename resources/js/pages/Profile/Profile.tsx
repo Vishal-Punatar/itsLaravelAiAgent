@@ -97,23 +97,44 @@ export default function ProfilePage({ agents, chats, user, adminDefaultProvider 
     }, [pageErrors]);
 
     const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
-        // Immediately apply theme to DOM so user sees the change right away
+        // Wrap the entire DOM mutation + state commit in a View Transition
+        // (when supported) so the theme change is atomic — the browser
+        // crossfades the whole page in a single 250ms animation instead of
+        // letting elements repaint in a visible cascade (logo → dropdown →
+        // sidebar → main body).
+        //
+        // Fallback path (Firefox / older): instant cut. ChatLayout listens
+        // for the app:theme-changed event and arms the per-element
+        // CSS transitions via .theme-changing for a smooth (if slightly
+        // cascaded) transition.
         const effective = newTheme === 'system'
             ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : newTheme;
-        const root = document.documentElement;
-        root.classList.remove('light', 'dark');
-        document.body.classList.remove('light', 'dark');
-        root.classList.add(effective);
-        document.body.classList.add(effective);
-        root.setAttribute('data-theme', effective);
-        // Update state — ChatLayout's useLayoutEffect applies the theme to DOM
-        setTheme(newTheme);
-        try { localStorage.setItem('app_theme', newTheme); } catch (e) {}
 
-        // Notify other components (e.g. ChatLayout's header dropdown) so
-        // their local `theme` state stays in sync without a full page refresh.
-        try { window.dispatchEvent(new CustomEvent('app:theme-changed', { detail: newTheme })); } catch (e) {}
+        const mutate = () => {
+            const root = document.documentElement;
+            root.classList.remove('light', 'dark');
+            document.body.classList.remove('light', 'dark');
+            root.classList.add(effective);
+            document.body.classList.add(effective);
+            root.setAttribute('data-theme', effective);
+            setTheme(newTheme);
+            try { localStorage.setItem('app_theme', newTheme); } catch (e) {}
+            try {
+                window.dispatchEvent(new CustomEvent('app:theme-changed', { detail: newTheme }));
+            } catch (e) {}
+        };
+
+        if (typeof document.startViewTransition === 'function') {
+            // Suppress live-DOM CSS transitions during the crossfade.
+            document.documentElement.classList.add('theme-vt');
+            const transition = document.startViewTransition(mutate);
+            transition.finished.finally(() => {
+                document.documentElement.classList.remove('theme-vt');
+            });
+        } else {
+            mutate();
+        }
 
         // Fire-and-forget save to server
         fetch('/profile/theme', {
