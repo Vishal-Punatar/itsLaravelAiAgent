@@ -16,6 +16,19 @@ interface Chat {
     id: number;
     title: string;
     created_at: string;
+    is_favourite?: boolean;
+    is_pinned?: boolean;
+    favourited_at?: string | null;
+}
+
+interface PaginatedChats {
+    data: Chat[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    has_more: boolean;
+    next_page_url: string | null;
 }
 
 interface User {
@@ -34,7 +47,14 @@ interface AdminDefaultProvider {
 
 interface ProfilePageProps {
     agents: Agent[];
+    /** Legacy: used by the profile page's own "Recent chats" cards. */
     chats: Chat[];
+    /** Sidebar: un-paginated favourites, full list. */
+    favouriteChats?: Chat[];
+    /** Sidebar: first page of non-favourite chats, with has_more + next_page_url. */
+    allChatsPage?: PaginatedChats;
+    /** Sidebar: top 4 chats by updated_at (dashboard grid). */
+    recentChats?: Chat[];
     user: User;
     adminDefaultProvider?: AdminDefaultProvider | null;
 }
@@ -44,7 +64,7 @@ const labelCls = 'block text-xs mb-1 theme-text-secondary';
 const btnCls = 'px-4 py-1.5 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-xs font-medium hover:shadow-md hover:shadow-[rgba(102,126,234,0.3)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 const sectionCls = 'rounded-xl p-4 theme-bg-card border-0';
 
-export default function ProfilePage({ agents, chats, user, adminDefaultProvider }: ProfilePageProps) {
+export default function ProfilePage({ agents, chats, favouriteChats, allChatsPage, recentChats, user, adminDefaultProvider }: ProfilePageProps) {
     // Source of truth for the initial selection: localStorage (user's last active choice)
     // or the DB value. data-theme on <html> is always the RESOLVED 'light'/'dark'
     // (set by the inline blade script), so reading it would lose 'system'.
@@ -209,7 +229,17 @@ export default function ProfilePage({ agents, chats, user, adminDefaultProvider 
     return (
         <>
             <Head title="Profile - ThinkChat" />
-            <ChatLayout agents={agents} chats={chats} user={user} theme={theme} adminDefaultProvider={adminDefaultProvider}>
+            <ChatLayout
+                agents={agents}
+                favouriteChats={favouriteChats}
+                allChats={allChatsPage?.data ?? []}
+                hasMore={allChatsPage?.has_more ?? false}
+                nextPageUrl={allChatsPage?.next_page_url ?? null}
+                recentChats={recentChats}
+                user={user}
+                theme={theme}
+                adminDefaultProvider={adminDefaultProvider}
+            >
                 {/* Flash banner — reads $page.props.flash (set by the Inertia
                     middleware on every back()->with('flash', ...) response) and
                     renders a top-right toast. The `override` prop is used for

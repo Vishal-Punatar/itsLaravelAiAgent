@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { router } from '@inertiajs/react';
 import { Bot, Plus, Edit3, Trash2 } from 'lucide-react';
 import ChatLayout from '@/components/ChatLayout';
 import ProviderIcon, { getProviderGradient } from '@/components/ProviderIcon';
 import FlashBanner from '@/components/FlashBanner';
+import Pagination from '@/components/Pagination';
+import PerPageSelector from '@/components/PerPageSelector';
 
 interface Agent {
     id: number;
@@ -11,10 +14,32 @@ interface Agent {
     is_default: boolean;
 }
 
+interface PaginatedAgents {
+    data: Agent[];
+    links: { url: string | null; label: string; active: boolean }[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+}
+
 interface Chat {
     id: number;
     title: string;
     created_at: string;
+    is_favourite?: boolean;
+    is_pinned?: boolean;
+    favourited_at?: string | null;
+}
+
+interface PaginatedChats {
+    data: Chat[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    has_more: boolean;
+    next_page_url: string | null;
 }
 
 interface User {
@@ -32,13 +57,30 @@ interface AdminDefaultProvider {
 }
 
 interface AgentsPageProps {
+    /** Full unpaginated agents list — used by ChatLayout (sidebar agent dropdown). */
     agents: Agent[];
-    chats: Chat[];
+    /** Paginated slice for the page body. */
+    agentsPage: PaginatedAgents | Agent[];
+    /** Sidebar: un-paginated favourites, full list. */
+    favouriteChats?: Chat[];
+    /** Sidebar: first page of non-favourite chats, with has_more + next_page_url. */
+    allChatsPage?: PaginatedChats;
+    /** Sidebar: top 4 chats by updated_at (dashboard grid). */
+    recentChats?: Chat[];
     user: User;
     adminDefaultProvider?: AdminDefaultProvider | null;
+    filters?: { per_page?: number };
 }
 
-export default function AgentsPage({ agents, chats, user, adminDefaultProvider }: AgentsPageProps) {
+export default function AgentsPage({ agents, agentsPage, favouriteChats, allChatsPage, recentChats, user, adminDefaultProvider, filters }: AgentsPageProps) {
+    const isPaginated = !Array.isArray(agentsPage) && (agentsPage as PaginatedAgents)?.data !== undefined;
+    const paginated = agentsPage as PaginatedAgents;
+    const initialData = isPaginated ? paginated.data : (agentsPage as Agent[]);
+    const initialLinks = isPaginated ? paginated.links : [];
+    const initialTotal = isPaginated ? paginated.total : initialData.length;
+    const initialPerPage = isPaginated
+        ? paginated.per_page
+        : (filters?.per_page ?? (initialData.length || 10));
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(
         (() => {
             try {
@@ -49,7 +91,7 @@ export default function AgentsPage({ agents, chats, user, adminDefaultProvider }
         })()
     );
     const [deleteMessage, setDeleteMessage] = useState<{text: string; type: 'success'|'error'}|null>(null);
-    const [agentList, setAgentList] = useState(agents);
+    const [agentList, setAgentList] = useState<Agent[]>(initialData);
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
@@ -81,6 +123,10 @@ export default function AgentsPage({ agents, chats, user, adminDefaultProvider }
             if (response.ok || response.redirected) {
                 setAgentList(prev => prev.filter(a => a.id !== agentId));
                 setDeleteMessage({ text: `"${agentName}" deleted successfully.`, type: 'success' });
+
+                // Refresh the paginated agentsPage prop from server so
+                // the total count + pagination links stay in sync.
+                router.reload({ only: ['agentsPage'] });
             } else {
                 setDeleteMessage({ text: 'Failed to delete agent.', type: 'error' });
             }
@@ -104,7 +150,17 @@ export default function AgentsPage({ agents, chats, user, adminDefaultProvider }
     }, [deleteMessage]);
 
     return (
-        <ChatLayout agents={agents} chats={chats} user={user} theme={theme} adminDefaultProvider={adminDefaultProvider}>
+        <ChatLayout
+            agents={agents}
+            favouriteChats={favouriteChats}
+            allChats={allChatsPage?.data ?? []}
+            hasMore={allChatsPage?.has_more ?? false}
+            nextPageUrl={allChatsPage?.next_page_url ?? null}
+            recentChats={recentChats}
+            user={user}
+            theme={theme}
+            adminDefaultProvider={adminDefaultProvider}
+        >
             {/* Single source of truth for response messages on this page.
                 - Override fires for client-side actions like delete (fetch
                   follows the controller's 302 redirect and consumes the
@@ -126,15 +182,21 @@ export default function AgentsPage({ agents, chats, user, adminDefaultProvider }
                                 </div>
                                 <div className="min-w-0">
                                     <h1 className="text-base font-bold theme-text-primary truncate">AI Agents</h1>
-                                    <p className="text-xs theme-text-muted">{agentList.length} configured</p>
+                                    <p className="text-xs theme-text-muted">{initialTotal} configured</p>
                                 </div>
                             </div>
-                            <a
-                                href="/ai-agents/create"
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-xs font-medium shadow-md shadow-[rgba(102,126,234,0.3)] hover:shadow-lg hover:-translate-y-0.5 transition-all flex-shrink-0"
-                            >
-                                <Plus className="w-3.5 h-3.5" /> Add Agent
-                            </a>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <PerPageSelector
+                                    value={initialPerPage}
+                                    currentUrl="/ai-agents"
+                                />
+                                <a
+                                    href="/ai-agents/create"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-xs font-medium shadow-md shadow-[rgba(102,126,234,0.3)] hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                                >
+                                    <Plus className="w-3.5 h-3.5" /> Add Agent
+                                </a>
+                            </div>
                         </div>
                     </div>
 
@@ -205,6 +267,10 @@ export default function AgentsPage({ agents, chats, user, adminDefaultProvider }
                                 </div>
                             ))}
                         </div>
+                    )}
+
+                    {initialLinks.length > 0 && (
+                        <Pagination links={initialLinks} className="mt-3" />
                     )}
                 </div>
             </div>

@@ -35,6 +35,13 @@ Route::middleware('auth')->group(function () {
     // Chat routes - GET requests use Inertia (React), POST/DELETE use ChatController
     Route::get('/chat', [InertiaChatController::class, 'index'])->name('chat.index');
     Route::get('/chat/{id}', [InertiaChatController::class, 'show'])->name('chat.show');
+
+    // Sidebar infinite-scroll chunk endpoint — JSON-only, used by the
+    // ChatLayout sidebar to "Load more" chats without re-rendering the
+    // whole page. Lives under /api/* so it can't collide with /chat/{id}
+    // (e.g. a chat whose id happens to be "more"). Auth-protected so the
+    // user only sees their own chats.
+    Route::get('/api/chats', [InertiaChatController::class, 'chatsPage'])->name('api.chats.index');
     Route::post('/chat', [ChatController::class, 'store']);
     Route::post('/chat/{id}', [ChatController::class, 'sendMessage']);
     Route::post('/chat/{id}/stream', [ChatController::class, 'streamMessage']);

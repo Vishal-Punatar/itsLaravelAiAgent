@@ -211,9 +211,6 @@ export default function AdminProviders({ providers: initialProviders }: AdminPro
                 </div>
                 <div className="flex items-center gap-3">
                     <span className="text-xs text-[#666]">{providers.length} providers</span>
-                    <a href="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#888] hover:text-white hover:bg-[rgba(102,126,234,0.1)] transition-all">
-                        ← Back
-                    </a>
                 </div>
             </div>
 

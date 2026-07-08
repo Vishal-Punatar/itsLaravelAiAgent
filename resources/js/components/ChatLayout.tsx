@@ -33,9 +33,9 @@ function formatMessage(text: string): React.ReactNode[] {
             result.push(
                 <ul key={`ul-${listKey++}`} className="my-2 ml-5 space-y-1.5 list-none">
                     {bulletBuffer.map((item, i) => (
-                        <li key={i} className="flex items-start">
+                        <li key={i} className="flex items-start min-w-0">
                             <span className="text-[#667eea] mr-2 mt-0.5 flex-shrink-0">•</span>
-                            <span className="leading-relaxed">{formatInline(item.trim())}</span>
+                            <span className="leading-relaxed flex-1 min-w-0 break-words overflow-wrap-anywhere">{formatInline(item.trim())}</span>
                         </li>
                     ))}
                 </ul>
@@ -66,9 +66,9 @@ function formatMessage(text: string): React.ReactNode[] {
         if (numMatch) {
             flushBullets();
             result.push(
-                <div key={`n-${idx}`} className="flex items-start my-1.5 ml-5">
+                <div key={`n-${idx}`} className="flex items-start my-1.5 ml-5 min-w-0">
                     <span className="text-[#667eea] mr-2 mt-0.5 flex-shrink-0 font-medium">{numMatch[1]}</span>
-                    <span className="leading-relaxed">{formatInline(numMatch[2])}</span>
+                    <span className="leading-relaxed flex-1 min-w-0 break-words overflow-wrap-anywhere">{formatInline(numMatch[2])}</span>
                 </div>
             );
             return;
@@ -77,7 +77,7 @@ function formatMessage(text: string): React.ReactNode[] {
         // Regular text line - flush bullets first
         flushBullets();
         result.push(
-            <p key={`p-${idx}`} className="my-1.5 leading-relaxed">
+            <p key={`p-${idx}`} className="my-1.5 leading-relaxed break-words overflow-wrap-anywhere min-w-0">
                 {formatInline(trimmed)}
             </p>
         );
@@ -120,7 +120,7 @@ function formatInline(text: string): React.ReactNode {
             const codeParts = bp.split(/(`[^`]+`)/g);
             return codeParts.map((cp, k) => {
                 if (cp.startsWith('`') && cp.endsWith('`')) {
-                    return <code key={`${i}-${j}-${k}`} className="px-1.5 py-0.5 rounded bg-[rgba(102,126,234,0.2)] text-[#667eea] text-xs font-mono">{cp.slice(1, -1)}</code>;
+                    return <code key={`${i}-${j}-${k}`} className="px-1.5 py-0.5 rounded bg-[rgba(102,126,234,0.2)] text-[#667eea] text-xs font-mono break-all">{cp.slice(1, -1)}</code>;
                 }
                 return cp;
             });
@@ -180,7 +180,19 @@ interface Chat {
 
 interface ChatLayoutProps {
     agents: Agent[];
-    chats: Chat[];
+    /** Favourites (un-paginated, full list) — always rendered at top of sidebar. */
+    favouriteChats?: Chat[];
+    /** First page of non-favourite chats. */
+    allChats?: Chat[];
+    /**
+     * When true, the sidebar shows a "Load more" sentinel below the
+     * all-chats list that fetches additional pages from `/api/chats`.
+     */
+    hasMore?: boolean;
+    /** Absolute URL for the next page (provided by the controller for the first chunk). */
+    nextPageUrl?: string | null;
+    /** Legacy: legacy full chats list — derived if new props aren't passed. */
+    chats?: Chat[];
     currentChat?: Chat;
     user?: {
         is_admin: boolean;
@@ -198,7 +210,11 @@ interface ChatLayoutProps {
 
 export default function ChatLayout({
     agents,
-    chats,
+    favouriteChats: favouriteChatsProp,
+    allChats: allChatsProp,
+    hasMore: hasMoreProp = false,
+    nextPageUrl: nextPageUrlProp = null,
+    chats: legacyChats,
     currentChat,
     user,
     children,
@@ -213,25 +229,135 @@ export default function ChatLayout({
     const [theme, setTheme] = useState(themeProp ?? safeUser?.theme ?? 'system');
     // Ensure agents and chats are always arrays to prevent undefined errors
     const safeAgents = agents ?? [];
-    // Sort chats: pinned first (sorted by pinned_order), then by created_at descending
-    const sortedChats = [...(chats ?? [])].sort((a, b) => {
-        // Pinned chats first
-        if (a.is_pinned && !b.is_pinned) return -1;
-        if (!a.is_pinned && b.is_pinned) return 1;
-        // If both pinned, sort by pinned_order (lower = higher priority)
-        if (a.is_pinned && b.is_pinned) {
-            const orderA = a.pinned_order ?? 999;
-            const orderB = b.pinned_order ?? 999;
-            if (orderA !== orderB) return orderA - orderB;
+
+    // Backward-compat: derive the two slices when only legacy `chats`
+    // is passed. Used by the unchanged test fixtures; new pages always
+    // pass the split props.
+    const initialFavourites: Chat[] = favouriteChatsProp
+        ? (favouriteChatsProp ?? [])
+        : (legacyChats ?? []).filter((c) => c.is_favourite);
+    const initialAllChats: Chat[] = allChatsProp
+        ? (allChatsProp ?? [])
+        : (legacyChats ?? []).filter((c) => !c.is_favourite);
+
+    // State for the "All Chats" infinite scroll. We seed with the page-1
+    // chunk from props; subsequent chunks get appended on scroll.
+    const [loadedAllChats, setLoadedAllChats] = useState<Chat[]>(initialAllChats);
+    const [hasMore, setHasMore] = useState<boolean>(hasMoreProp);
+    const [nextPageUrl, setNextPageUrl] = useState<string | null>(nextPageUrlProp);
+    const [loadingMore, setLoadingMore] = useState<boolean>(false);
+
+    // Re-sync state when the parent re-renders (e.g. Inertia visits a
+    // different chat, the sidebar's first page content changes).
+    //
+    // CRITICAL: we MERGE, not replace. When a new chat is created and the
+    // user lands on /chat/{id}, the controller returns the same first page
+    // of chats but with the new chat prepended. If we replaced
+    // `loadedAllChats` with `allChatsProp` here, every previously-loaded
+    // older page (page 2+) would be wiped out — the user would see only
+    // the first 20 chats and have to scroll-load them again.
+    //
+    // Strategy: keep the order in `prev` (which already contains page 1 +
+    // any older pages we scrolled into), but inject any new chats that
+    // appear in `allChatsProp` (i.e., prop rows whose id is not in prev).
+    // New chats go at the top to match Laravel's `orderBy created_at desc`.
+    useEffect(() => {
+        if (!allChatsProp) {
+            // Legacy path — no prop; keep current loaded list as-is.
+            return;
         }
-        // Otherwise sort by created_at descending (newest first)
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-    const safeChats = sortedChats;
-    // Split into favourites and the rest. Backend already sorts favourited
-    // first (by favourited_at desc), so filtering preserves order.
-    const favouriteChats = safeChats.filter((c) => c.is_favourite);
-    const otherChats = safeChats.filter((c) => !c.is_favourite);
+        setLoadedAllChats((prev) => {
+            const prevIds = new Set(prev.map((c) => c.id));
+            const newFromProp = allChatsProp.filter((c) => !prevIds.has(c.id));
+            if (newFromProp.length === 0) {
+                // Prop is a strict subset of prev (e.g., same page-1 list
+                // re-fetched on navigation) — no change needed, just
+                // return prev to preserve identity and avoid re-renders.
+                return prev;
+            }
+            // New chats exist — prepend them in the order the prop has
+            // them (which is `created_at desc`), then keep the existing
+            // older loaded chats in their previous order.
+            return [...newFromProp, ...prev];
+        });
+        setHasMore(hasMoreProp);
+        setNextPageUrl(nextPageUrlProp);
+    }, [allChatsProp, hasMoreProp, nextPageUrlProp]);
+
+    /**
+     * Fetch the next chunk of non-favourite chats from `/api/chats` and
+     * append it to `loadedAllChats`. Idempotent — if a fetch is already
+     * in flight, the click is a no-op.
+     */
+    const loadMoreChats = async () => {
+        if (loadingMore || !hasMore || !nextPageUrl) return;
+        setLoadingMore(true);
+        try {
+            const res = await fetch(nextPageUrl, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            setLoadedAllChats((prev) => {
+                const seen = new Set(prev.map((c) => c.id));
+                const merged = [...prev];
+                for (const item of data.data ?? []) {
+                    if (!seen.has(item.id)) merged.push(item);
+                }
+                return merged;
+            });
+            setHasMore(Boolean(data.has_more));
+            setNextPageUrl(data.next_page_url ?? null);
+        } catch (e) {
+            // Silent — user can retry by scrolling more. We don't toast here
+            // because infinite-scroll failures should be non-noisy.
+            console.warn('Failed to load more chats:', e);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    const favouriteChats = initialFavourites;
+    const otherChats = loadedAllChats;
+
+    // Sentinel for IntersectionObserver-based auto-load. The observer
+    // triggers `loadMoreChats` when the sentinel scrolls into view, so
+    // the user doesn't have to click "Load more" unless they want to.
+    const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const el = loadMoreSentinelRef.current;
+        if (!el) return;
+        // Don't observe once we've reached the last page.
+        if (!hasMore) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        void loadMoreChats();
+                    }
+                }
+            },
+            { rootMargin: '120px 0px' }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [hasMore, nextPageUrl, loadingMore]);
+
+    // Re-apply the active search filter when new chats get appended by
+    // infinite scroll. Without this, newly-loaded items would ignore the
+    // currently-typed filter until the user types another character.
+    useEffect(() => {
+        const input = document.getElementById('chatSearch') as HTMLInputElement | null;
+        if (!input) return;
+        const filter = input.value.toLowerCase();
+        if (!filter) return;
+        const chatItems = document.querySelectorAll('.chat-item');
+        chatItems.forEach((item) => {
+            const title = (item as HTMLElement).dataset.title || '';
+            (item as HTMLElement).style.display = title.includes(filter) ? '' : 'none';
+        });
+    }, [loadedAllChats]);
     
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarMinimized, setSidebarMinimized] = useState(false);
@@ -831,12 +957,21 @@ export default function ChatLayout({
                                 <span className="text-[9px] theme-text-muted truncate">Where ideas meet instant answers</span>
                             </div>
                         </a>
-                        {/* Sidebar Minimize Toggle */}
+                        {/* Sidebar Toggle — context-aware:
+                            • On mobile (<lg): closes the sidebar (no minimize concept)
+                            • On desktop (≥lg): minimizes/expands the sidebar */}
                         <button
-                            onClick={() => setSidebarMinimized(!sidebarMinimized)}
+                            onClick={() => {
+                                if (window.matchMedia('(max-width: 1023px)').matches) {
+                                    setSidebarOpen(false);
+                                } else {
+                                    setSidebarMinimized(!sidebarMinimized);
+                                }
+                            }}
                             className={`flex flex-col justify-center items-center w-7 h-7 rounded-lg transition-all duration-200 gap-[2px]
                                 ${theme === 'light' ? 'bg-gray-100 hover:bg-gray-200' : 'bg-[rgba(102,126,234,0.15)] hover:bg-[rgba(102,126,234,0.25)]'}`}
                             title="Minimize sidebar"
+                            aria-label="Toggle sidebar"
                         >
                             <span className={`w-3.5 h-[2px] rounded-full ${theme === 'light' ? 'bg-gray-600' : 'bg-white'}`}></span>
                             <span className={`w-3.5 h-[2px] rounded-full ${theme === 'light' ? 'bg-gray-600' : 'bg-white'}`}></span>
@@ -889,7 +1024,7 @@ export default function ChatLayout({
 
                 {/* Chat List */}
                 <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
-                    {safeChats.length === 0 ? (
+                    {favouriteChats.length === 0 && loadedAllChats.length === 0 ? (
                         <div className={`text-center py-8 px-3 theme-text-muted`}>
                             <div className="text-2xl mb-2 opacity-50">💬</div>
                             <p className="text-[11px] opacity-70">No conversations yet</p>
@@ -940,6 +1075,32 @@ export default function ChatLayout({
                                     </button>
                                     <div className={`overflow-hidden transition-all duration-200 ease-out ${allChatsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'}`}>
                                         {otherChats.map((chat) => renderChatItem(chat))}
+
+                                        {/* Infinite-scroll sentinel + manual fallback.
+                                            IntersectionObserver fires loadMoreChats() when
+                                            this div enters the viewport. When the user
+                                            pauses scrolling for any reason, the button
+                                            is right there as a manual fallback. */}
+                                        {!allChatsCollapsed && hasMore && (
+                                            <div
+                                                ref={loadMoreSentinelRef}
+                                                className="px-1.5 py-2 flex flex-col items-center gap-1.5"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void loadMoreChats()}
+                                                    disabled={loadingMore}
+                                                    className="px-2 py-1 rounded-md text-[10px] font-medium theme-text-muted hover:theme-text-secondary theme-bg-hover transition-colors disabled:opacity-50"
+                                                >
+                                                    {loadingMore ? 'Loading…' : 'Load more'}
+                                                </button>
+                                            </div>
+                                        )}
+                                        {!allChatsCollapsed && !hasMore && otherChats.length > 0 && (
+                                            <div className="px-1.5 py-2 text-center text-[10px] theme-text-muted opacity-70">
+                                                End of chats
+                                            </div>
+                                        )}
                                     </div>
                                 </>
                             )}
@@ -1206,7 +1367,7 @@ export function AgentSelector({
     );
 
     return (
-        <div ref={containerRef} className="relative flex-shrink-0">
+        <div ref={containerRef} className="relative flex-shrink-0 w-full sm:w-auto sm:max-w-[180px]">
             <button
                
                 onClick={onToggle}
@@ -1214,10 +1375,11 @@ export function AgentSelector({
                     flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2
                     text-sm cursor-pointer
                     transition-all duration-200
+                    w-full
                     ${isOpen ? 'border-[#667eea] shadow-lg shadow-[rgba(102,126,234,0.2)]' : ''}
                     ${themeVal === 'light' ? 'theme-bg-glass border-[var(--border-color)] hover:border-[#667eea] shadow-sm' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[#667eea] shadow-sm'}
                 `}
-                style={{ width: '100%', maxWidth: '220px', height: '44px', boxSizing: 'border-box' }}
+                style={{ height: '44px', boxSizing: 'border-box' }}
             >
                 <div className={`w-7 h-7 rounded-lg bg-gradient-to-r ${getProviderGradient(selectedAgent?.provider ?? 'openai')} flex items-center justify-center flex-shrink-0`}>
                     <ProviderIcon provider={selectedAgent?.provider ?? 'openai'} size={16} color="#ffffff" />
@@ -1415,7 +1577,7 @@ export function ModelSelector({
     })();
 
     return (
-        <div ref={containerRef} className="relative flex-shrink-0">
+        <div ref={containerRef} className="relative flex-shrink-0 w-full sm:w-auto sm:max-w-[180px]">
             {/* Inline scoped styles for the dropdown scrollbar. Webkit-only;
                 Firefox falls back to its native thin scrollbar via scrollbarWidth. */}
             <style>{`
@@ -1439,13 +1601,14 @@ export function ModelSelector({
                     flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2
                     text-sm cursor-pointer
                     transition-all duration-200
+                    w-full
                     ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
                     ${isOpen ? 'border-[#667eea] shadow-lg shadow-[rgba(102,126,234,0.2)]' : ''}
                     ${themeVal === 'light'
                         ? 'theme-bg-glass border-[var(--border-color)] hover:border-[#667eea] shadow-sm'
                         : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[#667eea] shadow-sm'}
                 `}
-                style={{ width: '100%', maxWidth: '180px', height: '44px', boxSizing: 'border-box' }}
+                style={{ height: '44px', boxSizing: 'border-box' }}
             >
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     isError
@@ -1650,7 +1813,7 @@ export function ChatInput({
     };
 
     return (
-        <div className="flex flex-col gap-2 flex-1">
+        <div className="flex flex-col gap-2 w-full sm:flex-1 sm:w-auto min-w-0">
             {attachments.length > 0 && (
                 <div className="flex flex-wrap gap-2 p-2 rounded-xl theme-bg-glass border border-white/30 backdrop-blur-sm">
                     {attachments.map((file, index) => {
@@ -1994,11 +2157,21 @@ export const MessageBubble = memo(function MessageBubble({ message, userId, onIm
                     ))}
                 </div>
             )}
-            {/* Only show message bubble if there's actual text */}
+            {/* Only show message bubble if there's actual text.
+                Bubble styling: bigger radius (rounded-2xl), more padding
+                (px-4 py-2.5), a sharper tail on the speaker's side
+                (rounded-br-sm / rounded-bl-sm), and a soft drop-shadow on
+                both sides so they feel like real chat bubbles, not flat
+                rectangles. */}
             {hasText && (
                 <div className={`
-                    px-3 py-1.5 rounded-xl text-sm leading-relaxed break-words overflow-wrap-anywhere max-w-[85vw] sm:max-w-[75%]
-                    ${isUser ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md shadow-lg shadow-[rgba(102,126,234,0.2)]' : (themeVal === 'light' ? 'bg-white text-gray-800 border border-gray-200 rounded-bl-md' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-color)] rounded-bl-md')}
+                    px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words overflow-wrap-anywhere max-w-[85vw] sm:max-w-[75%] min-w-0 shadow-sm
+                    ${isUser
+                        ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-sm shadow-[rgba(102,126,234,0.25)] shadow-md'
+                        : (themeVal === 'light'
+                            ? 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm'
+                            : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-color)] rounded-bl-sm shadow-[rgba(0,0,0,0.15)] shadow-md')
+                    }
                 `}>
                     {isStreaming ? (
                         // Streaming view: plain whitespace-preserving text. No
@@ -2036,7 +2209,7 @@ export const MessageBubble = memo(function MessageBubble({ message, userId, onIm
 // Typing Indicator
 export function TypingIndicator() {
     return (
-        <div className="flex items-start self-start max-w-[75vw] sm:max-w-[75%]">
+        <div className="flex items-start self-start max-w-[75vw] sm:max-w-[75%] min-w-0">
             <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-[var(--bg-secondary)] border border-[var(--border-color)]">
                 <div className="flex gap-1">
                     <span className="w-2 h-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

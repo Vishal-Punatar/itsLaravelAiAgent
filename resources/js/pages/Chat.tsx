@@ -62,9 +62,29 @@ interface Chat {
     favourited_at?: string | null;
 }
 
+interface PaginatedChats {
+    data: Chat[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    has_more: boolean;
+    next_page_url: string | null;
+}
+
 interface ChatPageProps {
     agents: Agent[];
-    chats: Chat[];
+    /** Favourites shown at top of sidebar — un-paginated, full list. */
+    favouriteChats?: Chat[];
+    /** First page of non-favourite chats, with has_more + next_page_url. */
+    allChatsPage?: PaginatedChats;
+    /** Top 4 chats for the dashboard "Continue where you left off" grid. */
+    recentChats?: Chat[];
+    /**
+     * Legacy: full chat list passed in one array. Used to derive favourites
+     * + allChatsPage when those slices aren't provided.
+     * @deprecated Use favouriteChats + allChatsPage + recentChats.
+     */
+    chats?: Chat[];
     chat?: Chat;
     user?: {
         id?: number;
@@ -75,7 +95,29 @@ interface ChatPageProps {
     adminDefaultProvider?: AdminDefaultProvider | null;
 }
 
-export default function ChatPage({ agents, chats, chat, user, userHasAgents, adminDefaultProvider }: ChatPageProps) {
+export default function ChatPage({
+    agents,
+    favouriteChats,
+    allChatsPage,
+    recentChats,
+    chats,
+    chat,
+    user,
+    userHasAgents,
+    adminDefaultProvider,
+}: ChatPageProps) {
+    // Backward-compat: when only the legacy `chats` array is present (e.g.
+    // some test fixtures), derive favouriteChats + a synthetic allChatsPage
+    // so the sidebar still has the two-slice shape it expects. New pages
+    // always pass the split props.
+    const safeFavouriteChats: Chat[] = favouriteChats ?? (chats ?? []).filter((c) => c.is_favourite);
+    const safeAllChats: Chat[] = (() => {
+        if (allChatsPage) return allChatsPage.data ?? [];
+        return (chats ?? []).filter((c) => !c.is_favourite);
+    })();
+    const safeHasMore = allChatsPage?.has_more ?? false;
+    const safeNextPageUrl = allChatsPage?.next_page_url ?? null;
+    const safeRecentChats = recentChats ?? (chats ?? []).slice(0, 4);
     const { logoDark, logoLight } = useThemeLogo();
     const [message, setMessage] = useState('');
     const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
@@ -574,13 +616,19 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     };
 
     const chatContent = (
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pt-2 pb-2 sm:pt-4 sm:pb-4 md:pt-6 md:pb-6 flex flex-col gap-4 theme-bg-app">
+        // Outer scroll container fills the chat panel. Inner column
+        // (max-w-[1100px] mx-auto, scales up on larger screens) keeps
+        // messages aligned with the agent selector on the left and the
+        // send button on the right — same horizontal range as the chat
+        // controls row below.
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto pt-2 pb-2 sm:pt-4 sm:pb-4 md:pt-6 md:pb-6 flex flex-col theme-bg-app">
+            <div className="flex flex-col gap-4 w-full max-w-[1100px] xl:max-w-[1280px] 2xl:max-w-[1400px] mx-auto px-3 sm:px-4">
             {localMessages.length === 0 ? (
                 <ChatWelcome
                     theme={theme}
                     logoDark={logoDark}
                     logoLight={logoLight}
-                    chats={chats}
+                    recentChats={safeRecentChats}
                     agents={agents}
                     adminDefaultProvider={adminDefaultProvider}
                     selectedAgent={selectedAgent}
@@ -607,6 +655,7 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
                     <div ref={messagesEndRef} />
                 </div>
             )}
+            </div>
 
                     {/* Scroll to Bottom Button */}
                     {showScrollButton && (
@@ -643,9 +692,9 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     const chatControls = (
         <div
             ref={agentSelectorRef}
-            className="flex-shrink-0 flex flex-col sm:flex-row sm:items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[1100px]"
+            className="flex-shrink-0 flex flex-col sm:flex-row sm:items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[1100px] xl:max-w-[1280px] 2xl:max-w-[1400px]"
         >
-            <div className="flex flex-row items-end gap-2 w-full sm:w-auto sm:flex-shrink-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 w-full sm:w-auto sm:flex-shrink-0">
                 <AgentSelector
                     agents={agents}
                     selectedAgent={selectedAgent}
@@ -694,7 +743,17 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     );
 
     return (
-        <ChatLayout agents={agents} chats={chats} currentChat={chat} user={user} adminDefaultProvider={adminDefaultProvider} userHasAgents={userHasAgents}>
+        <ChatLayout
+            agents={agents}
+            favouriteChats={safeFavouriteChats}
+            allChats={safeAllChats}
+            hasMore={safeHasMore}
+            nextPageUrl={safeNextPageUrl}
+            currentChat={chat}
+            user={user}
+            adminDefaultProvider={adminDefaultProvider}
+            userHasAgents={userHasAgents}
+        >
             {combinedArea}
             {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
         </ChatLayout>
@@ -708,7 +767,7 @@ function ChatWelcome({
     theme,
     logoDark,
     logoLight,
-    chats,
+    recentChats,
     agents,
     adminDefaultProvider,
     selectedAgent,
@@ -719,7 +778,7 @@ function ChatWelcome({
     theme: 'light' | 'dark' | 'system';
     logoDark: string;
     logoLight: string;
-    chats: Chat[];
+    recentChats: Chat[];
     agents: Agent[];
     adminDefaultProvider?: AdminDefaultProvider | null;
     selectedAgent: Agent | null;
@@ -727,11 +786,8 @@ function ChatWelcome({
     selectedModel: string;
     user?: { name?: string };
 }) {
-    // NOTE: `userHasAgents` prop removed (was unused). It's also declared later
-    // in ChatPage so referencing it inside the chatContent JSX above caused a
-    // TDZ error ("Cannot access 'Q' before initialization") in production.
-    // Backend already sorts chats by updated_at desc (controller). Top 4 for the dashboard.
-    const recentChats = (chats ?? []).slice(0, 4);
+    // Backend now passes top-4 chats directly via `recentChats` prop.
+    // No client-side slicing needed.
 
     // Sort user agents: default first, then alphabetical.
     const sortedAgents = useMemo(() => {

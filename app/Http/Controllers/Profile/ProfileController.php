@@ -35,6 +35,12 @@ class ProfileController extends Controller
                 'is_pinned' => (bool) $c->is_pinned,
                 'favourited_at' => $c->favourited_at?->toIso8601String() ?? null,
             ]);
+        // Sidebar chats: paginated three-slice shape, same as /chat and
+        // /chat/{id}. Reused from InertiaChatController::buildSidebarChatProps()
+        // so the sidebar on /profile supports the same infinite-scroll
+        // "Load more" pattern.
+        $chatProps = app(\App\Http\Controllers\InertiaChatController::class)
+            ->buildSidebarChatProps();
         $stats = [
             'total_chats' => $user->chats()->count(),
             'total_messages' => $user->chats()->withCount('messages')->get()->sum('messages_count'),
@@ -43,6 +49,12 @@ class ProfileController extends Controller
 
         return Inertia::render('Profile/Profile', [
             'agents' => $agents,
+            'favouriteChats' => $chatProps['favouriteChats'],
+            'allChatsPage' => $chatProps['allChatsPage'],
+            'recentChats' => $chatProps['recentChats'],
+            // Keep `chats` (legacy 20-item list) so the profile page's
+            // "Recent chats" cards continue to render — the page reads
+            // `chats` directly, not from the sidebar's allChatsPage.
             'chats' => $chats,
             'user' => [
                 'id' => $user->id,

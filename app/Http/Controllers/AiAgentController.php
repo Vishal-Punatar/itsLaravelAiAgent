@@ -18,21 +18,18 @@ class AiAgentController extends Controller
             'provider' => $a->provider,
             'is_default' => $a->is_default,
         ]);
-        $chats = $user->chats()
-            ->orderByRaw('is_favourite DESC, COALESCE(favourited_at, "1970-01-01") DESC, is_pinned DESC, COALESCE(pinned_order, 999999) ASC, updated_at DESC')
-            ->limit(20)
-            ->get()
-            ->map(fn($c) => [
-                'id' => $c->id,
-                'title' => $c->title,
-                'created_at' => $c->created_at->toIso8601String(),
-                'is_favourite' => (bool) $c->is_favourite,
-                'is_pinned' => (bool) $c->is_pinned,
-                'favourited_at' => $c->favourited_at?->toIso8601String() ?? null,
-            ]);
+        // Sidebar chats: paginated three-slice shape (favourites +
+        // paginated non-favourites + recent). Reused from
+        // InertiaChatController::buildSidebarChatProps() so the sidebar
+        // on /ai-agents supports the same infinite-scroll "Load more"
+        // pattern as /chat and /chat/{id}.
+        $chatProps = app(\App\Http\Controllers\InertiaChatController::class)
+            ->buildSidebarChatProps();
         return [
             'agents' => $agents,
-            'chats' => $chats,
+            'favouriteChats' => $chatProps['favouriteChats'],
+            'allChatsPage' => $chatProps['allChatsPage'],
+            'recentChats' => $chatProps['recentChats'],
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -50,9 +47,25 @@ class AiAgentController extends Controller
     /**
      * Display a listing of the user's AI agents.
      */
-    public function index()
+    public function index(Request $request)
     {
         $data = $this->getUserData();
+
+        // Per-page selector: whitelist values, fall back to 10.
+        $perPage = in_array((int) $request->query('per_page'), [10, 15, 25, 50, 100], true)
+            ? (int) $request->query('per_page')
+            : 10;
+
+        // Paginated slice for the page body. The sidebar's agent selector
+        // still needs the full unpaginated list (from getUserData() above),
+        // so we expose this as a separate prop `agentsPage` and keep
+        // `agents` (used by ChatLayout's sidebar) untouched.
+        $data['agentsPage'] = AiAgent::where('user_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
+        $data['filters'] = ['per_page' => $perPage];
+
         return Inertia::render('Agents/Agents', $data);
     }
 

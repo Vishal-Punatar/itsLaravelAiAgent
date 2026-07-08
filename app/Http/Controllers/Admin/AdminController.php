@@ -60,14 +60,29 @@ class AdminController extends Controller
         return Inertia::render('Admin/Dashboard', ['stats' => $stats]);
     }
 
-    public function users()
+    public function users(Request $request)
     {
+        // Whitelist per_page values — anything else falls back to default (10).
+        $perPage = in_array((int) $request->query('per_page'), [10, 15, 25, 50, 100], true)
+            ? (int) $request->query('per_page')
+            : 10;
+
+        // Search (q) and role filter are intentionally NOT applied server-side.
+        // They're handled client-side in Admin/Users.tsx via local state so
+        // that a hard refresh resets the inputs to empty + filter to "All"
+        // — the URL never carries the search/role, only per_page.
         $users = User::with('aiAgents')
             ->withCount('chats', 'messages')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($perPage)
+            ->withQueryString();
 
-        return Inertia::render('Admin/Users', ['users' => $users]);
+        return Inertia::render('Admin/Users', [
+            'users' => $users,
+            'filters' => [
+                'per_page' => $perPage,
+            ],
+        ]);
     }
 
     public function editUser($id)
@@ -469,14 +484,45 @@ class AdminController extends Controller
         return response()->json(['success' => true, 'message' => $provider->name . ' is no longer the default provider.']);
     }
 
-    public function allSettings()
+    public function allSettings(Request $request)
     {
+        $perPage = in_array((int) $request->query('per_page'), [10, 15, 25, 50, 100], true)
+            ? (int) $request->query('per_page')
+            : 10;
+
+        // Build the provider dropdown from `ai_agents` ONLY.
+        //
+        // Source of truth: distinct `ai_agents.provider` slugs.
+        //   - value  = the raw slug (used as the filter key)
+        //   - label  = Str::headline() on the slug (Title Case, e.g.
+        //              "openai" -> "Openai", "xai" -> "Xai")
+        //
+        // No joins, no admin_ai_agents lookup, no hardcoded map. The
+        // dropdown is fully derived from a single column on a single
+        // table, plus one Laravel string helper.
+        $availableProviders = AiAgent::query()
+            ->whereNotNull('provider')
+            ->where('provider', '!=', '')
+            ->distinct()
+            ->orderBy('provider')
+            ->pluck('provider')
+            ->map(fn ($slug) => [
+                'value' => $slug,
+                'label' => \Illuminate\Support\Str::headline($slug),
+            ])
+            ->values();
+
         $agents = AiAgent::with('user')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($perPage)
+            ->withQueryString();
 
         return Inertia::render('Admin/Settings', [
             'agents' => $agents,
+            'filters' => [
+                'per_page' => $perPage,
+            ],
+            'availableProviders' => $availableProviders,
         ]);
     }
 }

@@ -16,6 +16,19 @@ interface Chat {
     id: number;
     title: string;
     created_at: string;
+    is_favourite?: boolean;
+    is_pinned?: boolean;
+    favourited_at?: string | null;
+}
+
+interface PaginatedChats {
+    data: Chat[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    has_more: boolean;
+    next_page_url: string | null;
 }
 
 interface User {
@@ -35,7 +48,9 @@ interface AdminDefaultProvider {
 interface AgentFormProps {
     agent?: Agent;
     agents: Agent[];
-    chats: Chat[];
+    favouriteChats?: Chat[];
+    allChatsPage?: PaginatedChats;
+    recentChats?: Chat[];
     user: User;
     isEdit?: boolean;
     adminDefaultProvider?: AdminDefaultProvider | null;
@@ -55,7 +70,7 @@ const providers = [
     { value: 'openrouter', label: 'OpenRouter' },
 ];
 
-export default function AgentForm({ agent, agents, chats, user, isEdit = false, adminDefaultProvider }: AgentFormProps) {
+export default function AgentForm({ agent, agents, favouriteChats, allChatsPage, recentChats, user, isEdit = false, adminDefaultProvider }: AgentFormProps) {
 
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(
         (() => {
@@ -156,7 +171,17 @@ export default function AgentForm({ agent, agents, chats, user, isEdit = false, 
     const selectedProvider = providers.find(p => p.value === provider) || providers[0];
 
     return (
-        <ChatLayout agents={agents} chats={chats} user={user} theme={theme} adminDefaultProvider={adminDefaultProvider}>
+        <ChatLayout
+            agents={agents}
+            favouriteChats={favouriteChats}
+            allChats={allChatsPage?.data ?? []}
+            hasMore={allChatsPage?.has_more ?? false}
+            nextPageUrl={allChatsPage?.next_page_url ?? null}
+            recentChats={recentChats}
+            user={user}
+            theme={theme}
+            adminDefaultProvider={adminDefaultProvider}
+        >
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 <div className="max-w-xl mx-auto px-2 sm:px-0">
                     {/* Back Link */}
