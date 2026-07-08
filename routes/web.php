@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/chat/{id}', [InertiaChatController::class, 'show'])->name('chat.show');
     Route::post('/chat', [ChatController::class, 'store']);
     Route::post('/chat/{id}', [ChatController::class, 'sendMessage']);
+    Route::post('/chat/{id}/stream', [ChatController::class, 'streamMessage']);
     Route::post('/chat/{id}/pin', [ChatController::class, 'togglePin']);
     Route::post('/chat/{id}/favourite', [ChatController::class, 'toggleFavourite']);
     Route::post('/chat/{id}/rename', [ChatController::class, 'rename']);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { Bot, Sparkles, Zap, MessageSquare, ChevronDown, Check, Send, Menu, Plus, Settings, LogOut, Pin, PinOff, Sun, Moon, Monitor, Edit3, X, Trash2, MoreVertical, Paperclip, Cpu, AlertTriangle, ArrowLeft, Star, StarOff } from 'lucide-react';
 import { useMemo } from 'react';
@@ -161,6 +161,10 @@ interface Message {
     message: string;
     attachments?: Attachment[] | AttachmentWithType[] | null;
     created_at?: string;
+    // True while this assistant message is actively streaming tokens from SSE.
+    // When true, MessageBubble skips markdown parsing and renders plain text
+    // (whitespace-pre-wrap) to avoid visual reflow as incomplete lines arrive.
+    streaming?: boolean;
 }
 
 interface Chat {
@@ -1586,6 +1590,8 @@ export function ChatInput({
     value,
     onChange,
     onSubmit,
+    onStop,
+    isStreaming = false,
     placeholder = "Type your message here...",
     disabled = false,
     theme = 'system',
@@ -1596,6 +1602,8 @@ export function ChatInput({
     value: string;
     onChange: (value: string) => void;
     onSubmit: () => void;
+    onStop?: () => void;
+    isStreaming?: boolean;
     placeholder?: string;
     disabled?: boolean;
     theme?: 'light' | 'dark' | 'system';
@@ -1610,6 +1618,7 @@ export function ChatInput({
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
+            if (isStreaming) return; // ignore Enter while streaming (Stop button takes over)
             if (!disabled && (value.trim() || attachments.length > 0)) onSubmit();
         }
     };
@@ -1713,14 +1722,48 @@ export function ChatInput({
                     `}
                     style={{ boxSizing: 'border-box', height: '48px' }}
                 />
-                <button
-                    type="button"
-                    disabled={disabled || (!value.trim() && attachments.length === 0)}
-                    onClick={onSubmit}
-                    className="w-[44px] h-[44px] rounded-2xl bg-gradient-to-r from-[#667eea] to-[#764ba2] border-none cursor-pointer text-white flex items-center justify-center shadow-lg shadow-[rgba(102,126,234,0.4)] hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0"
-                >
-                    <Send className="w-4 h-4" />
-                </button>
+                {isStreaming ? (
+                    // Stop generating — aborts the active SSE stream in-flight.
+                    // Replacing the Send button in the same slot keeps the input
+                    // row width identical (no layout jump when streaming starts/ends).
+                    <div className="relative group flex-shrink-0">
+                        <button
+                            type="button"
+                            onClick={onStop}
+                            aria-label="Stop generating"
+                            className="w-[44px] h-[44px] rounded-2xl border-none cursor-pointer text-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex-shrink-0 bg-gradient-to-r from-red-500 to-red-600 shadow-[rgba(239,68,68,0.4)] hover:shadow-xl"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12" rx="1.5" />
+                            </svg>
+                        </button>
+                        {/* Tooltip — appears above the button on hover/focus */}
+                        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2.5 py-1.5 rounded-lg bg-[#1f1f3a] text-white text-xs font-medium whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 shadow-xl">
+                            Stop generating
+                            {/* Arrow pointing down at the button */}
+                            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-[#1f1f3a]"></div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="relative group flex-shrink-0">
+                        <button
+                            type="button"
+                            disabled={disabled || (!value.trim() && attachments.length === 0)}
+                            onClick={onSubmit}
+                            aria-label="Send message"
+                            className="w-[44px] h-[44px] rounded-2xl bg-gradient-to-r from-[#667eea] to-[#764ba2] border-none cursor-pointer text-white flex items-center justify-center shadow-lg shadow-[rgba(102,126,234,0.4)] hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0"
+                        >
+                            <Send className="w-4 h-4" />
+                        </button>
+                        {/* Tooltip — only show when button is enabled (avoids tooltip on disabled state) */}
+                        {!(disabled || (!value.trim() && attachments.length === 0)) && (
+                            <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2.5 py-1.5 rounded-lg bg-[#1f1f3a] text-white text-xs font-medium whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 shadow-xl">
+                                Send message
+                                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-[#1f1f3a]"></div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Image preview lightbox */}
@@ -1791,13 +1834,23 @@ function getAttachmentUrl(path: string, userId: number): string {
     return `/attachment/${userId}/${encodeURIComponent(filename)}`;
 }
 
-export function MessageBubble({ message, userId, onImageClick }: { message: Message; userId?: number; onImageClick?: (src: string) => void }) {
+export const MessageBubble = memo(function MessageBubble({ message, userId, onImageClick }: { message: Message; userId?: number; onImageClick?: (src: string) => void }) {
     const isUser = message.role === 'user';
     const themeVal = 'system'; // Default theme for MessageBubble
 
+    // While tokens are actively streaming in, render the text in plain
+    // whitespace-pre-wrap mode instead of running it through formatMessage().
+    // The markdown parser re-parses incomplete lines every render — bullets,
+    // numbered lists, paragraph boundaries — causing visible reflow / "jump"
+    // on each chunk. Plain rendering keeps the bubble rock-stable during
+    // the stream; the formatted version is applied only after streaming ends.
+    const isStreaming = message.streaming === true;
+
     const formattedContent = useMemo(() => {
+        // Skip expensive parse while streaming — return raw text in a token array.
+        if (isStreaming) return null;
         return formatMessage(message.message);
-    }, [message.message]);
+    }, [message.message, isStreaming]);
 
     // Normalize attachments to a typed array. The DB column is cast to
     // 'array' but legacy rows may be double-encoded JSON strings (e.g.
@@ -1947,7 +2000,15 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
                     px-3 py-1.5 rounded-xl text-sm leading-relaxed break-words overflow-wrap-anywhere max-w-[85vw] sm:max-w-[75%]
                     ${isUser ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md shadow-lg shadow-[rgba(102,126,234,0.2)]' : (themeVal === 'light' ? 'bg-white text-gray-800 border border-gray-200 rounded-bl-md' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-color)] rounded-bl-md')}
                 `}>
-                    {formattedContent}
+                    {isStreaming ? (
+                        // Streaming view: plain whitespace-preserving text. No
+                        // markdown parsing. Token-by-token changes don't trigger
+                        // paragraph / bullet reflow. The trailing .streaming-cursor
+                        // span blinks on/off like ChatGPT/Gemini while tokens arrive.
+                        <div className="whitespace-pre-wrap font-sans">{message.message}<span className="streaming-cursor" aria-hidden="true" /></div>
+                    ) : (
+                        formattedContent
+                    )}
                 </div>
             )}
             <span className="text-[10px] text-[var(--text-muted)] mt-1.5 px-1" title={message.created_at ? new Date(message.created_at).toLocaleString() : ''}>
@@ -1970,7 +2031,7 @@ export function MessageBubble({ message, userId, onImageClick }: { message: Mess
             </span>
         </div>
     );
-}
+});
 
 // Typing Indicator
 export function TypingIndicator() {

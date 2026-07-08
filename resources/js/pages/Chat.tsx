@@ -44,6 +44,11 @@ interface Message {
     message: string;
     attachments?: Attachment[] | null;
     created_at?: string;
+    // True while this assistant message is actively streaming tokens from SSE.
+    // MessageBubble skips markdown parsing while streaming (avoids per-token
+    // reflow as incomplete lines arrive) and renders plain whitespace-preserving
+    // text instead. Flipped to false when the stream ends (success or abort).
+    streaming?: boolean;
 }
 
 interface Chat {
@@ -93,6 +98,67 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     const [localMessages, setLocalMessages] = useState<Message[]>(chat?.messages || []);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showTyping, setShowTyping] = useState(false);
+    // AbortController for the active SSE stream (so "Stop generating" can
+    // cancel the request mid-flight, saving API cost on aborted requests).
+    const abortControllerRef = useRef<AbortController | null>(null);
+    // Whether the user clicked "Stop" — the message bubble shows a hint.
+    const [streamStopped, setStreamStopped] = useState(false);
+
+    // ─────────────────────────────────────────────────────────────────
+    // Per-token rendering: buffer deltas and emit small chunks per rAF
+    // tick so providers that batch (Gemini sends ~50–75 tokens per delta)
+    // don't appear as "3 dots then whole response". One constant, one
+    // queue, one rAF loop. Works the same for every provider.
+    // ─────────────────────────────────────────────────────────────────
+    // Chars emitted per rAF tick (60fps → ~360 chars/sec for chatty
+    // responses, ~60 chars/sec for short ones thanks to the small queue
+    // draining fast).
+    const CHARS_PER_TICK = 6;
+    // Queue of small chunks waiting to be rendered.
+    const tokenQueueRef = useRef<string[]>([]);
+    const rafIdRef = useRef<number | null>(null);
+    // True while the user is within ~80px of the bottom. Auto-scroll
+    // follows new tokens; once they scroll up, this flips false and
+    // tokens continue streaming without forcing scroll position.
+    const streamPinToBottomRef = useRef<boolean>(true);
+
+    // Pop one chunk from the queue and append it to the assistant
+    // message. rAF self-schedules while the queue has more items.
+    const flushPendingDelta = () => {
+        rafIdRef.current = null;
+        if (tokenQueueRef.current.length === 0) return;
+
+        // Drain up to CHARS_PER_TICK in one render. We pop from the front
+        // of the array so the order matches the upstream stream order.
+        let batch = '';
+        for (let i = 0; i < CHARS_PER_TICK && tokenQueueRef.current.length > 0; i++) {
+            batch += tokenQueueRef.current.shift();
+        }
+
+        setLocalMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last && last.role === 'assistant') {
+                updated[updated.length - 1] = { ...last, message: last.message + batch };
+            }
+            return updated;
+        });
+
+        if (tokenQueueRef.current.length > 0) {
+            rafIdRef.current = requestAnimationFrame(flushPendingDelta);
+        }
+    };
+
+    const appendDelta = (delta: string) => {
+        if (!delta) return;
+        setShowTyping(false);
+        for (let i = 0; i < delta.length; i += CHARS_PER_TICK) {
+            tokenQueueRef.current.push(delta.slice(i, i + CHARS_PER_TICK));
+        }
+        if (rafIdRef.current === null) {
+            rafIdRef.current = requestAnimationFrame(flushPendingDelta);
+        }
+    };
     const [theme, setTheme] = useState((): 'light' | 'dark' | 'system' => {
         // Read from body's class (set by blade template / applyTheme) — this is the most reliable source
         if (document.body.classList.contains('light')) return 'light';
@@ -125,6 +191,12 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const agentSelectorRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
+    // Inner content wrapper — ResizeObserver watches its height. When tokens
+    // stream in (bubble grows), the markdown re-renders (bubble re-grows),
+    // a new message arrives, or the typing indicator shows/hides, the
+    // observer fires and we scroll-to-bottom instantly. Bulletproof: no
+    // dependency on rAF timing or scrollHeight staleness.
+    const messagesInnerRef = useRef<HTMLDivElement>(null);
 
     // Close agent dropdown when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
@@ -147,9 +219,26 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
         }
     }, [chat]);
 
+    // ResizeObserver — fires once per actual layout change of the inner
+    // message stack. When tokens stream in (bubble grows), the markdown
+    // re-render finishes (bubble re-grows), a new message arrives, or the
+    // typing indicator appears/disappears, this fires and we scroll the
+    // container to the new bottom. This is the bulletproof version that
+    // doesn't depend on rAF timing or scrollHeight staleness.
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [localMessages, showTyping]);
+        const inner = messagesInnerRef.current;
+        const container = messagesContainerRef.current;
+        if (!inner || !container) return;
+
+        const observer = new ResizeObserver(() => {
+            if (!streamPinToBottomRef.current) return;
+            // Over-shoot scrollTop so browser clamps to maxScrollTop regardless
+            // of how much the content continues to grow in the next paint.
+            container.scrollTop = container.scrollHeight + 1_000_000;
+        });
+        observer.observe(inner);
+        return () => observer.disconnect();
+    }, []);
 
     // Handle scroll to show/hide scroll-to-bottom button
     useEffect(() => {
@@ -158,9 +247,12 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
 
         const handleScroll = () => {
             const { scrollTop, scrollHeight, clientHeight } = container;
-            // Show button if user has scrolled up more than 100px from the bottom
             const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
             setShowScrollButton(distanceFromBottom > 100);
+            // Update the streaming auto-scroll pin: if user has scrolled back
+            // near the bottom (within 80 px), re-pin so new tokens auto-scroll.
+            // If they scroll further up, un-pin so we don't fight their scroll.
+            streamPinToBottomRef.current = distanceFromBottom < 80;
         };
 
         container.addEventListener('scroll', handleScroll);
@@ -216,7 +308,6 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
             return;
         }
 
-
         // Build attachment data with object URLs for immediate preview
         const attachmentData: Attachment[] = attachments.map((file) => ({
             name: file.name,
@@ -236,42 +327,250 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
         setMessage('');
         setAttachments([]);
         setShowTyping(true);
+        setStreamStopped(false);
         setIsSubmitting(true);
+        // Reset streaming rendering state for this new message.
+        tokenQueueRef.current = [];
+        rafIdRef.current = null;
+        streamPinToBottomRef.current = true;
+
+        // No chat yet (first message in a new chat) — fall back to the
+        // non-streaming POST /chat endpoint, which creates the chat and
+        // redirects. Streaming requires an existing chat_id.
+        if (!chat) {
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const formData = new FormData();
+                formData.append('_token', csrfToken);
+                formData.append('message', userMessage.message);
+                const agentIdToSend = selectedAgent?.is_admin_default ? '' : String(selectedAgent?.id);
+                formData.append('agent_id', agentIdToSend);
+                formData.append('model_id', selectedModel);
+                attachments.forEach((file, index) => {
+                    formData.append(`attachments[${index}]`, file);
+                });
+                const response = await fetch('/chat', { method: 'POST', body: formData });
+                if (response.ok || response.redirected) {
+                    window.location.href = response.url || window.location.href;
+                    return;
+                }
+                throw new Error('Failed');
+            } catch {
+                setShowTyping(false);
+                setIsSubmitting(false);
+                alert('Failed to send message.');
+            }
+            return;
+        }
+
+        // Streaming path: POST /chat/{id}/stream → text/event-stream
+        // The assistant message starts empty and is filled token-by-token
+        // as SSE events arrive. TypingIndicator hides on the first token.
+        const streamingMessage: Message = {
+            role: 'assistant',
+            message: '',
+            created_at: new Date().toISOString(),
+            streaming: true,
+        };
+        setLocalMessages((prev) => [...prev, streamingMessage]);
+
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
 
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const url = chat ? `/chat/${chat.id}` : '/chat';
-
             const formData = new FormData();
             formData.append('_token', csrfToken);
             formData.append('message', userMessage.message);
-            // If using admin default (id=-1), send null so backend uses its fallback logic
-            console.log('DEBUG submit', { selectedAgent, selectedModel, isAdminDefault: selectedAgent?.is_admin_default, agentIdToSend: selectedAgent?.is_admin_default ? '' : String(selectedAgent?.id) });
             const agentIdToSend = selectedAgent?.is_admin_default ? '' : String(selectedAgent?.id);
             formData.append('agent_id', agentIdToSend);
-            // Runtime-only model selection — NEVER persisted on ai_agents.
             formData.append('model_id', selectedModel);
-
-            // Add attachments
             attachments.forEach((file, index) => {
                 formData.append(`attachments[${index}]`, file);
             });
 
-            const response = await fetch(url, {
+            const response = await fetch(`/chat/${chat.id}/stream`, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                signal: controller.signal,
+                headers: { Accept: 'text/event-stream' },
             });
 
-            if (response.ok || response.redirected) {
-                window.location.href = response.url || window.location.href;
-            } else {
-                throw new Error('Failed');
+            if (!response.ok || !response.body) {
+                const errorText = await response.text().catch(() => '');
+                throw new Error(errorText || `HTTP ${response.status}`);
             }
-        } catch {
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // SSE events are delimited by blank lines. Split, process the
+                // complete events, keep the trailing incomplete chunk in the
+                // buffer for the next read.
+                let eventEnd;
+                while ((eventEnd = buffer.indexOf('\n\n')) !== -1) {
+                    const rawEvent = buffer.slice(0, eventEnd);
+                    buffer = buffer.slice(eventEnd + 2);
+
+                    // Each event can have multiple "data:" lines; concatenate them.
+                    const dataLines: string[] = [];
+                    for (const line of rawEvent.split('\n')) {
+                        if (line.startsWith('data:')) {
+                            dataLines.push(line.slice(5).trimStart());
+                        }
+                    }
+                    if (dataLines.length === 0) continue;
+                    const data = dataLines.join('\n');
+                    if (data === '[DONE]') continue;
+
+                    // The Laravel AI SDK yields StreamEvent objects whose __toString()
+                    // returns `json_encode($this->toArray())`. So `data` is JSON like:
+                    //   {"type":"text_delta","delta":"Hello","message_id":"..."}
+                    //   {"type":"text_start", ...}
+                    //   {"type":"stream_end","usage":{...}}
+                    //   {"type":"insufficient_quota","message":"...","recoverable":false} ← Error
+                    //   {"type":"rate_limit_exceeded","message":"...","recoverable":false} ← Error
+                    //   {"type":"request_too_large","message":"...","recoverable":false} ← Error
+                    //   {"type":"authentication_error","message":"...","recoverable":false} ← Error
+                    //   {"type":"error","message":"...","code":429}  ← emitted by ChatController
+                    //     when the SDK throws mid-stream (e.g. network timeout).
+                    // We only append the text delta; other events are control signals.
+                    let delta: string | null = null;
+                    try {
+                        const parsed = JSON.parse(data);
+                        const eventType = parsed?.type;
+                        if (eventType === 'text_delta' || eventType === 'text-delta') {
+                            delta = typeof parsed.delta === 'string' ? parsed.delta : null;
+                        } else if (eventType === 'reasoning_delta' || eventType === 'reasoning-delta') {
+                            // Skip reasoning content — it's chain-of-thought, not user-facing.
+                            // Future: render as collapsible "thinking" panel.
+                            delta = null;
+                        } else if (
+                            // Detect ANY provider error event by its unique signature:
+                            // string `type` (not a text-delta variant) + string `message`.
+                            //
+                            // SDK Error events: {type: "insufficient_quota"|"request_too_large"|
+                            //   "rate_limit_exceeded"|"authentication_error"|...,
+                            //   message: "...", recoverable: bool}
+                            // Backend-emitted errors (from ChatController try/catch):
+                            //   {type: "error", message: "...", recoverable: false, code: 0,
+                            //    exception_class: "RateLimitedException"}
+                            //
+                            // No control event (stream_start/text_start/text_end/stream_end) or
+                            // text event (text_delta/reasoning_delta) has `message` as a string
+                            // field — they use `delta`, `provider`, `model`, `usage`, etc. So
+                            // checking `eventType !== text_delta && parsed.message is string`
+                            // is sufficient to identify errors without enumerating types.
+                            typeof eventType === 'string' &&
+                            eventType !== 'text_delta' && eventType !== 'text-delta' &&
+                            eventType !== 'reasoning_delta' && eventType !== 'reasoning-delta' &&
+                            typeof parsed?.message === 'string' &&
+                            parsed.message
+                        ) {
+                            const errorMessage = parsed.message;
+                            setLocalMessages((prev) => {
+                                const updated = [...prev];
+                                const last = updated[updated.length - 1];
+                                if (last && last.role === 'assistant') {
+                                    updated[updated.length - 1] = { ...last, message: errorMessage };
+                                }
+                                return updated;
+                            });
+                            delta = null;
+                        } else {
+                            // text_start / text_end / stream_start / stream_end / tool_call etc.
+                            delta = null;
+                        }
+                    } catch {
+                        // Not JSON — append verbatim as a fallback (shouldn't happen with SDK).
+                        delta = data;
+                    }
+
+                    if (delta === null) continue;
+
+                    // Hide typing indicator on the first text chunk received,
+                    // and buffer the delta for the next rAF tick.
+                    appendDelta(delta);
+                }
+            }
+
+            // Drain any remaining buffered data (rare: chunk arrived without trailing \n\n)
+            if (buffer.trim()) {
+                const tail = buffer.trim();
+                if (tail.startsWith('data:')) {
+                    const data = tail.slice(5).trimStart();
+                    if (data && data !== '[DONE]') {
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed?.type === 'text_delta' || parsed?.type === 'text-delta') {
+                                const delta = typeof parsed.delta === 'string' ? parsed.delta : '';
+                                if (delta) appendDelta(delta);
+                            }
+                        } catch {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            const isAbort = err instanceof DOMException && err.name === 'AbortError';
+            if (isAbort) {
+                setStreamStopped(true);
+            } else {
+                console.error('Stream failed:', err);
+                setLocalMessages((prev) => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last && last.role === 'assistant') {
+                        updated[updated.length - 1] = {
+                            ...last,
+                            message: last.message || 'Sorry, I couldn\u2019t reach the AI service. Please try again.',
+                        };
+                    }
+                    return updated;
+                });
+            }
+        } finally {
+            // Stream ended (success, error, or browser abort). Cancel any
+            // pending rAF, then schedule one final drain to render any
+            // remaining buffered chunks. The natural rAF loop will continue
+            // from there if the queue is still non-empty.
+            if (rafIdRef.current !== null) {
+                cancelAnimationFrame(rafIdRef.current);
+                rafIdRef.current = null;
+            }
+            if (tokenQueueRef.current.length > 0) {
+                rafIdRef.current = requestAnimationFrame(flushPendingDelta);
+            }
+            // Flip the last assistant message from streaming → finalized so
+            // MessageBubble re-runs the markdown parser once on the completed
+            // text (bullets, numbered lists, paragraph breaks all settle).
+            setLocalMessages((prev) => prev.map((msg, i) =>
+                i === prev.length - 1 && msg.role === 'assistant' && msg.streaming
+                    ? { ...msg, streaming: false }
+                    : msg
+            ));
+            // No need to manually scroll here — the ResizeObserver observing
+            // messagesInnerRef fires as soon as the streamed→finalized flip
+            // triggers the markdown re-render and grows the bubble height.
             setShowTyping(false);
             setIsSubmitting(false);
-            alert('Failed to send message.');
+            abortControllerRef.current = null;
         }
+    };
+
+    // "Stop generating" handler — aborts the active SSE stream. The backend
+    // sees the disconnect, the SDK's then() callback fires, and whatever was
+    // generated up to the abort point is persisted to chat_messages.
+    const handleStop = () => {
+        abortControllerRef.current?.abort();
     };
 
     const chatContent = (
@@ -290,12 +589,24 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
                     user={user}
                 />
             ) : (
-                <>
+                // Inner content wrapper. ResizeObserver watches this element's
+                // height (bubbles + typing indicator + stopped hint + anchor).
+                // The outer container is overflow-y-auto; this inner just lays
+                // out children in a column.
+                <div ref={messagesInnerRef} className="flex flex-col gap-4">
                     {localMessages.map((msg, index) => (
                         <MessageBubble key={index} message={msg} userId={user?.id} onImageClick={setLightboxSrc} />
                     ))}
                     {showTyping && <TypingIndicator />}
+                    {/* "Stopped" hint shown briefly after the user aborts */}
+                    {streamStopped && !isSubmitting && (
+                        <div className={`text-xs italic px-2 ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
+                            Stopped.
+                        </div>
+                    )}
                     <div ref={messagesEndRef} />
+                </div>
+            )}
 
                     {/* Scroll to Bottom Button */}
                     {showScrollButton && (
@@ -311,8 +622,6 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
                             </svg>
                         </button>
                     )}
-                </>
-            )}
         </div>
     );
 
@@ -324,81 +633,62 @@ export default function ChatPage({ agents, chats, chat, user, userHasAgents, adm
     // Show the admin default info when user has no agents
     const usingAdminDefault = !effectiveHasAgents && adminDefaultProvider;
 
+    // True when the user CAN chat (has their own agents OR the admin default
+    // is available). Used by the unified chat-input area below.
+    const canChat = effectiveHasAgents || usingAdminDefault;
+
+    // One single unified section: chat + agent selector + chat input.
+    // Shared between "user has agents" and "using admin default" branches —
+    // they were previously duplicated 2× and now live in one place.
+    const chatControls = (
+        <div
+            ref={agentSelectorRef}
+            className="flex-shrink-0 flex flex-col sm:flex-row sm:items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[1100px]"
+        >
+            <div className="flex flex-row items-end gap-2 w-full sm:w-auto sm:flex-shrink-0">
+                <AgentSelector
+                    agents={agents}
+                    selectedAgent={selectedAgent}
+                    onSelectAgent={handleAgentSelect}
+                    isOpen={agentDropdownOpen}
+                    onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
+                    theme={theme}
+                    adminDefaultProvider={adminDefaultProvider}
+                    userHasAgents={effectiveHasAgents}
+                />
+                <ModelSelector
+                    selectedAgent={selectedAgent}
+                    selectedModel={selectedModel}
+                    onSelectModel={setSelectedModel}
+                    theme={theme}
+                />
+            </div>
+            <ChatInput
+                value={message}
+                onChange={setMessage}
+                onSubmit={handleSubmit}
+                onStop={handleStop}
+                isStreaming={isSubmitting}
+                disabled={isSubmitting || !selectedAgent || !selectedModel}
+                theme={theme}
+                attachments={attachments}
+                onAttach={handleAttach}
+                onRemoveAttachment={handleRemoveAttachment}
+            />
+        </div>
+    );
+
     // One single unified section: chat + agent selector + chat input
     const combinedArea = (
         <div className="flex-1 flex flex-col min-h-0">
             {chatContent}
-            {effectiveHasAgents ? (
-                <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-col sm:flex-row sm:items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[1100px]">
-                    <div className="flex flex-row items-end gap-2 w-full sm:w-auto sm:flex-shrink-0">
-                        <AgentSelector
-                            agents={agents}
-                            selectedAgent={selectedAgent}
-                            onSelectAgent={handleAgentSelect}
-                            isOpen={agentDropdownOpen}
-                            onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
-                            theme={theme}
-                            adminDefaultProvider={adminDefaultProvider}
-                            userHasAgents={effectiveHasAgents}
-                        />
-                        <ModelSelector
-                            selectedAgent={selectedAgent}
-                            selectedModel={selectedModel}
-                            onSelectModel={setSelectedModel}
-                            theme={theme}
-                        />
+            {canChat ? chatControls : (
+                <div className={`flex items-center justify-center py-3 px-4 rounded-xl mx-3 sm:mx-4 mb-3 sm:mb-4 ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
+                    <div className="text-center">
+                        <p className="text-sm">⚠️ No AI Provider Configured</p>
+                        <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
                     </div>
-                    <ChatInput
-                        value={message}
-                        onChange={setMessage}
-                        onSubmit={handleSubmit}
-                        disabled={isSubmitting || !selectedAgent || !selectedModel}
-                        theme={theme}
-                        attachments={attachments}
-                        onAttach={handleAttach}
-                        onRemoveAttachment={handleRemoveAttachment}
-                    />
                 </div>
-            ) : (
-                usingAdminDefault ? (
-                    <div ref={agentSelectorRef} className="flex-shrink-0 flex flex-col sm:flex-row sm:items-end gap-2 px-3 sm:px-4 pb-3 sm:pb-4 mx-auto w-full max-w-[900px]">
-                        <div className="flex flex-row items-end gap-2 w-full sm:w-auto sm:flex-shrink-0">
-                        <AgentSelector
-                            agents={agents}
-                            selectedAgent={selectedAgent}
-                            onSelectAgent={handleAgentSelect}
-                            isOpen={agentDropdownOpen}
-                            onToggle={() => setAgentDropdownOpen(!agentDropdownOpen)}
-                            theme={theme}
-                            adminDefaultProvider={adminDefaultProvider}
-                            userHasAgents={effectiveHasAgents}
-                        />
-                        <ModelSelector
-                            selectedAgent={selectedAgent}
-                            selectedModel={selectedModel}
-                            onSelectModel={setSelectedModel}
-                            theme={theme}
-                        />
-                        </div>
-                        <ChatInput
-                            value={message}
-                            onChange={setMessage}
-                            onSubmit={handleSubmit}
-                            disabled={isSubmitting || !selectedAgent || !selectedModel}
-                            theme={theme}
-                            attachments={attachments}
-                            onAttach={handleAttach}
-                            onRemoveAttachment={handleRemoveAttachment}
-                        />
-                    </div>
-                ) : (
-                    <div className={`flex items-center justify-center py-3 px-4 rounded-xl mx-3 sm:mx-4 mb-3 sm:mb-4 ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-[#1a1a2e] text-[#888]'}`}>
-                        <div className="text-center">
-                            <p className="text-sm">⚠️ No AI Provider Configured</p>
-                            <p className="text-xs mt-1">Please add an AI agent to start chatting</p>
-                        </div>
-                    </div>
-                )
             )}
         </div>
     );

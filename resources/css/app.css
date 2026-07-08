@@ -112,6 +112,39 @@
     }
 }
 
+/* Streaming cursor — ChatGPT / Gemini style blinking caret.
+   Sharp on/off blink (not a fade) so it reads as "actively typing".
+   Uses currentColor so it inherits the bubble's text color (white on
+   the user bubble, foreground on assistant bubbles). */
+@keyframes streaming-cursor-blink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
+}
+
+.streaming-cursor {
+    display: inline-block;
+    width: 2px;
+    /* line-height: 1.5 = ~21px in text-sm. Match it so cursor sits on baseline. */
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.18em; /* sits flush with text baseline */
+    background-color: currentColor;
+    animation: streaming-cursor-blink 1s steps(2, jump-none) infinite;
+    /* steps(2) gives a sharp on/off blink; 1s cycle feels like ChatGPT. */
+}
+
+/* Respect users who prefer reduced motion: keep cursor visible (no blink). */
+@media (prefers-reduced-motion: reduce) {
+    .streaming-cursor {
+        animation: none;
+        opacity: 0.7;
+    }
+}
+
 /* Gradient text */
 .gradient-text {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

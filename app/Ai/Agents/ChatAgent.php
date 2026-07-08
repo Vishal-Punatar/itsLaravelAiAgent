@@ -6,6 +6,7 @@ use App\Models\AiAgent;
 use App\Models\AdminAiAgent;
 use App\Models\Chat;
 use App\Models\ChatMessage;
+
 use Illuminate\Contracts\Routing\Response;
 use Illuminate\Support\Facades\Config;
 use Laravel\Ai\AiManager;
@@ -22,6 +23,7 @@ use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
+use Laravel\Ai\Responses\StreamableAgentResponse;
 use Stringable;
 
 class ChatAgent implements Agent, Conversational
@@ -65,59 +67,91 @@ class ChatAgent implements Agent, Conversational
         ?string $model = null,
         int $timeout = 120
     ): mixed {
-        // Set the API key in config for this request
         $this->setApiKeyInConfig();
 
-        // Build the attachments array
-        $files = [];
-        foreach ($attachments as $attachment) {
-            if ($attachment instanceof \Illuminate\Http\UploadedFile) {
-                // Handle uploaded files - read as base64
-                $contents = file_get_contents($attachment->getRealPath());
-                $base64 = base64_encode($contents);
-                $mime = $attachment->getMimeType();
-                
-                // Check if it's an image or document
-                if ($mime && strpos($mime, 'image/') === 0) {
-                    $files[] = new Base64Image($base64, $mime);
-                } else {
-                    $files[] = new Base64Document($base64, $mime);
-                }
-            } elseif (is_string($attachment)) {
-                // Assume it's a path - determine if image or document
-                $mime = mime_content_type($attachment);
-                if ($mime && strpos($mime, 'image/') === 0) {
-                    $files[] = new LocalImage($attachment, $mime);
-                } else {
-                    $files[] = new LocalDocument($attachment, $mime);
-                }
-            }
-        }
-
-        $providerEnum = $provider ? Lab::from($provider) : Lab::from($this->aiAgent->provider);
-        $model = $model ?? AiAgent::defaultModelForProvider($this->aiAgent->provider);
-
-        $files = !empty($files) ? $files : [];
+        [$providerEnum, $resolvedModel] = $this->resolveProviderAndModel($provider, $model);
+        $files = $this->buildAiFiles($attachments);
 
         // Retry up to 3 times on rate limit / overloaded errors
         $attempts = 0;
         $lastException = null;
         while ($attempts < 3) {
             try {
-                if (!empty($files)) {
-                    return $this->prompt($prompt, $files, $providerEnum, $model, $timeout);
-                }
-                return $this->prompt($prompt, [], $providerEnum, $model, $timeout);
+                return $this->prompt($prompt, $files, $providerEnum, $resolvedModel, $timeout);
             } catch (FailoverableException $e) {
                 $lastException = $e;
                 $attempts++;
                 if ($attempts < 3) {
-                    usleep(min(1000000 * pow(2, $attempts), 5000000)); // 2s, 4s backoff
+                    usleep(min(1_000_000 * (2 ** $attempts), 5_000_000)); // 2s, 4s backoff
                 }
             }
         }
 
         throw $lastException;
+    }
+
+    /**
+     * Stream a prompt to the agent with optional attachments, returning a
+     * StreamableAgentResponse. Mirrors promptWithAttachments() but uses the
+     * SDK's stream() method so tokens arrive one-by-one over SSE.
+     *
+     * Works with any provider that uses the StreamsText trait (OpenAI,
+     * Anthropic, Gemini, Groq, xAI, DeepSeek, Mistral, Azure, Bedrock,
+     * OpenRouter, Ollama).
+     */
+    public function streamWithAttachments(
+        string $prompt,
+        array $attachments = [],
+        ?string $provider = null,
+        ?string $model = null,
+        int $timeout = 120
+    ): StreamableAgentResponse {
+        $this->setApiKeyInConfig();
+
+        [$providerEnum, $resolvedModel] = $this->resolveProviderAndModel($provider, $model);
+        $files = $this->buildAiFiles($attachments);
+
+        // Single call — streaming has its own retry semantics upstream.
+        // Note: FailoverableException can still fire from the SDK's inner
+        // stream iterator; let it propagate so the controller can decide.
+        return $this->stream($prompt, $files, $providerEnum, $resolvedModel, $timeout);
+    }
+
+    /**
+     * Convert an array of UploadedFile / path-string attachments into the
+     * SDK's Base64Image / Base64Document / LocalImage / LocalDocument objects.
+     * Empty input → empty array.
+     */
+    private function buildAiFiles(array $attachments): array
+    {
+        $files = [];
+        foreach ($attachments as $attachment) {
+            if ($attachment instanceof \Illuminate\Http\UploadedFile) {
+                $contents = file_get_contents($attachment->getRealPath());
+                $files[] = str_starts_with((string) $attachment->getMimeType(), 'image/')
+                    ? new Base64Image(base64_encode($contents), $attachment->getMimeType())
+                    : new Base64Document(base64_encode($contents), $attachment->getMimeType());
+            } elseif (is_string($attachment)) {
+                $mime = (string) mime_content_type($attachment);
+                $files[] = str_starts_with($mime, 'image/')
+                    ? new LocalImage($attachment, $mime)
+                    : new LocalDocument($attachment, $mime);
+            }
+        }
+        return $files;
+    }
+
+    /**
+     * Resolve the (provider enum, model string) tuple for an SDK call.
+     * `$provider` overrides the agent's stored provider; `$model` overrides
+     * the provider's default model.
+     */
+    private function resolveProviderAndModel(?string $provider, ?string $model): array
+    {
+        return [
+            $provider ? Lab::from($provider) : Lab::from($this->aiAgent->provider),
+            $model ?? AiAgent::defaultModelForProvider($this->aiAgent->provider),
+        ];
     }
 
     /**
